@@ -5,6 +5,10 @@ class DemuxAppException(Exception):
     """Base class for exceptions"""
 
 
+class ApiProblemException(DemuxAppException):
+    """Raised when there is a problem with any API call"""
+
+
 class MissingConfiguration(DemuxAppException):
     """Raised on missing configuration"""
 

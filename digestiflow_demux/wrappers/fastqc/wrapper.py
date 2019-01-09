@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
 """Snakemake wrapper for FastQC.
+
+This file is parth of Digestifly Demux.
 """
 
 from snakemake import shell
@@ -14,8 +15,10 @@ fastqc \
     -o $(dirname {snakemake.output.html}) \
     {snakemake.input.fastq}
 
-pushd $(dirname {snakemake.output.html}) \
-&& for x in *.html *.zip; do md5sum $x >$x.md5; done \
-&& popd
+cd $(dirname {snakemake.output.html})
+
+for x in *.html *.zip; do
+    md5sum $x >$x.md5
+done
 """
 )

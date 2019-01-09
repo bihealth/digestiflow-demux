@@ -8,15 +8,36 @@ import logging
 import attr
 import toml
 
+from .exceptions import ApiProblemException
+from .workflow import perform_demultiplexing
 
-@attr.s
+from ._version import get_versions
+
+
+__version__ = get_versions()["version"]
+del get_versions
+
+
+@attr.s(frozen=True)
 class DemuxConfig:
     """Configuration of demultiplexing app"""
 
     #: URL to Digestiflow Web API
     api_url = attr.ib()
     #: Token for Digestiflow Web API
-    api_token = attr.ib()
+    api_token = attr.ib(repr=False)
+    #: The project UUID to register the flowcell in
+    project_uuid = attr.ib()
+
+    #: Whether or not to keep the work directory
+    keep_work_dir = attr.ib()
+    #: Working directory
+    work_dir = attr.ib()
+
+    #: Select tiles
+    tiles = attr.ib()
+    #: Select lanes
+    lanes = attr.ib()
 
     #: Degree of parallelism to use
     cores = attr.ib()
@@ -24,6 +45,8 @@ class DemuxConfig:
     verbose = attr.ib()
     #: Decrease verbosity
     quiet = attr.ib()
+    #: Whether or not to log the API token
+    log_api_token = attr.ib()
 
     @classmethod
     def build(cls, config):
@@ -31,38 +54,37 @@ class DemuxConfig:
         return cls(
             api_url=config["web"]["url"],
             api_token=config["web"]["token"],
+            project_uuid=config["demux"]["project_uuid"],
+            keep_work_dir=config["demux"]["keep_work_dir"],
+            work_dir=config["demux"]["work_dir"],
+            tiles=config["demux"]["tiles"],
+            lanes=config["demux"]["lanes"],
             cores=config["threads"],
             verbose=config["verbose"],
             quiet=config["quiet"],
+            log_api_token=config["log_api_token"],
         )
 
 
-def run(args):
-    """Main entry point (after parsing command line options)."""
+def setup_logging(demux_config):
+    """Setup logging based on ``demux_config``."""
+    logger = logging.getLogger()
+    logger.handlers = []
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(asctime)s %(levelname)-8s %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    if demux_config.quiet:
+        level = logging.WARN
+    elif demux_config.verbose:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logger.setLevel(level)
 
 
-def main(argv=None):
-    """Main entry point (before parsing command line options).
-
-    Will also load configuration TOML file at ``~/.digestiflowrc.toml`` (if any) and merge this
-    with the settings from the arguments.
-    """
-    parser = argparse.ArgumentParser(description="Run demultiplexing for Digestiflow")
-
-    parser.add_argument("--api-url", help="URL to Digestiflow Web API")
-    parser.add_argument("--api-token", help="API token to use for Digestiflow Web API")
-    parser.add_argument("--cores", type=int, help="Degree of parallelism to use")
-    parser.add_argument("--verbose", action="store_true", default=None, help="Increase verbosity")
-    parser.add_argument("--quiet", action="store_true", default=None, help="Decrease verbosity")
-
-    parser.add_argument("output_dir", metavar="OUT_DIR", help="Path to output directory")
-    parser.add_argument(
-        "input_dirs", metavar="SEQ_DIR", help="Path(s) to sequencer raw data directories", nargs="+"
-    )
-
-    args = parser.parse_args(argv)
-
-    # Load configuration file, if any.
+def load_config():
+    """Load configuration file"""
     config = {}
     for path in ("~/.digestiflowrc.toml", "~/digestiflowrc.toml"):
         if os.path.exists(os.path.expanduser(path)):
@@ -74,16 +96,25 @@ def main(argv=None):
             logging.debug("Configuration %s does not exist", path)
     else:
         logging.info("No configuration file found; not loading any")
+    return config
 
-    # Now override configuration keys with values from arguments.
+
+def merge_config_args(config, args):
+    """Merge args into configuration."""
     config.setdefault("web", {}).setdefault("url", None)
     if args.api_url:
         config.setdefault("web", {})["url"] = args.api_url
     config.setdefault("web", {}).setdefault("token", None)
     if args.api_token:
         config.setdefault("web", {})["token"] = args.api_url
+    config.setdefault("demux", {}).setdefault("project_uuid", None)
+    if args.project_uuid:
+        config["demux"]["project_uuid"] = args.project_uuid
+    config.setdefault("demux", {}).setdefault("keep_work_dir", False)
+    if args.keep_work_dir:
+        config["demux"]["keep_work_dir"] = True
     config.setdefault("threads", 1)
-    if args.threads:
+    if args.cores:
         config["threads"] = args.cores
     config.setdefault("verbose", False)
     if args.verbose is True:
@@ -92,11 +123,128 @@ def main(argv=None):
     if args.quiet is True:
         config["quiet"] = True
 
-    # Construct ``DemuxConfig`` and check arguments.
+    config["log_api_token"] = args.log_api_token
+    config.setdefault("demux", {})["tiles"] = args.tiles
+    config.setdefault("demux", {})["lanes"] = args.lanes
+    config.setdefault("demux", {})["work_dir"] = args.work_dir
+
+    return config
+
+
+def run(config, output_dir, input_dirs):
+    """Main entry point (after parsing command line options)."""
+    marker_file = os.path.join(output_dir, "DIGESTIFLOW_DEMUX_DONE.txt")
+    if os.path.exists(marker_file):
+        logging.error("The output marker file %s already exists.", marker_file)
+        logging.error("I'm refusing to overwrite it!")
+        return 1
+
+    logging.info("Starting digestiflow-demux")
+    logging.info("Configuration is: %s", config)
+    if config.log_api_token:
+        logging.debug("  API token is %s", config.api_token)
+
+    any_failure = False
+    base_output_dir = os.path.realpath(output_dir)
+    for input_dir in input_dirs:
+        input_dir = os.path.realpath(input_dir)
+        output_dir = os.path.join(base_output_dir, os.path.basename(input_dir))
+        try:
+            if not perform_demultiplexing(config, input_dir, output_dir):
+                logging.info("Demultiplexing was not performed (flow cel not registered?)")
+        except ApiProblemException as e:
+            logging.warning("There was an API problem for the flow cell. %s", e)
+            logging.warning("Will continue but program will have non-zero return code.")
+            any_failure = True
+
+    return any_failure
+
+
+def main(argv=None):
+    """Main entry point (before parsing command line options).
+
+    Will also load configuration TOML file at ``~/.digestiflowrc.toml`` (if any) and merge this
+    with the settings from the arguments.
+    """
+    # Setup argument parser and parse command line arguments.
+    parser = argparse.ArgumentParser(description="Run demultiplexing for Digestiflow")
+
+    parser.add_argument("--version", action="version", version="%(prog)s {}".format(__version__))
+    parser.add_argument("--api-url", help="URL to Digestiflow Web API")
+    parser.add_argument(
+        "--api-token", default=False, help="API token to use for Digestiflow Web API"
+    )
+    parser.add_argument(
+        "--log-api-token",
+        action="store_true",
+        help=(
+            "Create log entry with API token (debug level; use only when debugging as this "
+            "has security implications)"
+        ),
+    )
+    parser.add_argument("--project-uuid", help="Project UUID to register flowcell for")
+    parser.add_argument("--cores", type=int, help="Degree of parallelism to use")
+    parser.add_argument("--verbose", action="store_true", default=None, help="Increase verbosity")
+    parser.add_argument("--quiet", action="store_true", default=None, help="Decrease verbosity")
+    parser.add_argument(
+        "--keep-work-dir",
+        default=False,
+        action="store_true",
+        help="Keep temporary working directory (useful only for debugging)",
+    )
+    parser.add_argument(
+        "--work-dir", help="Specify working directory (instead of using temporary one)"
+    )
+
+    parser.add_argument("output_dir", metavar="OUT_DIR", help="Path to output directory")
+    parser.add_argument(
+        "input_dirs", metavar="SEQ_DIR", help="Path(s) to sequencer raw data directories", nargs="+"
+    )
+
+    group = parser.add_argument_group("Lane/Tile Selection")
+    mutex = group.add_mutually_exclusive_group()
+    mutex.add_argument(
+        "--lane",
+        type=int,
+        default=[],
+        action="append",
+        dest="lanes",
+        help=(
+            "Select individual lanes for demultiplexing; default is to "
+            "use all for which the sample sheet provides information; "
+            "provide multiple times for selecting multiple lanes."
+        ),
+    )
+    mutex.add_argument(
+        "--tiles",
+        type=str,
+        default=[],
+        action="append",
+        dest="tiles",
+        help=(
+            "Select tile regex; provide multiple times for multiple "
+            "regexes; conflicts with --lane"
+        ),
+    )
+
+    args = parser.parse_args(argv)
+
+    # Load configuration and merge with arguments.
+    config = merge_config_args(load_config(), args)
+
+    # Construct ``DemuxConfig`` from merge result and check the configuration values.
     demux_config = DemuxConfig.build(config)
     if not demux_config.api_url:
         logging.error("The URL to the API has not been specified!")
+        return 1
     if not demux_config.api_token:
         logging.error("The API token has not been specified.")
+        return 1
+    if not demux_config.project_uuid:
+        logging.error("The project UUID is missing")
+        return 1
 
-    return run(demux_config)
+    # Setup logging.
+    setup_logging(demux_config)
+
+    return run(demux_config, args.output_dir, args.input_dirs)
