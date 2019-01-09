@@ -1,0 +1,10 @@
+# Base dependencies for executing `digestiflow-demux`.
+
+# Snakemake is used for scheduling and execution.
+snakemake >=5.4.0
+
+# We use toml for configuration
+toml >=0.10.0
+
+# We use attrs for no-boilerplate classes
+attrs >=18.2.0

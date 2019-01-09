@@ -1,0 +1,3 @@
+include versioneer.py
+include digestiflow_demux/_version.py
+recursive-include digestiflow_demux *.py *.yml *.yaml Snakefile
