@@ -41,34 +41,34 @@ rule marker_file:
         r"""
         set -x; date --iso-8601=s >{output}
         """
-#
-# # -------------------------------------------------------------------------------------------------
-# # Perform demultiplexing.
-#
-# rule demux:
-#     input: out_prefix("SampleSheet.csv")
-#     output: get_result_files_demux(config)
-#     params:
-#         flowcell_token=config["flowcell"]["vendor_id"],
-#         input_dir=config["input_dir"],
-#         output_dir=config["output_dir"],
-#         tiles_arg=get_tiles_arg(config),
-#     threads: config["cores"]
-#     wrapper: wrapper_path(bcl2fastq_wrapper(config))
-#
-# # -------------------------------------------------------------------------------------------------
-# # Run FastQC.
-#
-# rule fastqc:
-#     input:
-#         fastq=out_prefix("{sample}/{flowcell}/{lane}/{filename}.fastq.gz")
-#     output:
-#         html=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.html"),
-#         html_md5=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.html.md5"),
-#         zip=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip"),
-#         zip_md5=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip.md5"),
-#     threads: 1
-#     wrapper: wrapper_path("fastqc")
+
+# -------------------------------------------------------------------------------------------------
+# Perform demultiplexing.
+
+rule demux:
+    input: out_prefix("SampleSheet.csv")
+    output: get_result_files_demux(config)
+    params:
+        flowcell_token=config["flowcell"]["vendor_id"],
+        input_dir=config["input_dir"],
+        output_dir=config["output_dir"],
+        tiles_arg=get_tiles_arg(config),
+    threads: config["cores"]
+    wrapper: wrapper_path(bcl2fastq_wrapper(config))
+
+# -------------------------------------------------------------------------------------------------
+# Run FastQC.
+
+rule fastqc:
+    input:
+        fastq=out_prefix("{sample}/{flowcell}/{lane}/{filename}.fastq.gz")
+    output:
+        html=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.html"),
+        html_md5=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.html.md5"),
+        zip=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip"),
+        zip_md5=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip.md5"),
+    threads: 1
+    wrapper: wrapper_path("fastqc")
 
 # -------------------------------------------------------------------------------------------------
 # Collect all QC statistics using MultiQC.

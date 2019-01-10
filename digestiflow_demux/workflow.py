@@ -253,11 +253,12 @@ def send_flowcell_success_message(client, flowcell, output_dir, *log_files):
         )
 
 
-def send_flowcell_failure_message(client, flowcell):
+def send_flowcell_failure_message(client, flowcell, *log_files):
     return client.message_send(
         flowcell_uuid=flowcell["sodar_uuid"],
         subject="Demultiplexing FAILED for flow cell %s" % flowcell["vendor_id"],
         body=TPL_MSG_FAILURE.format(flowcell=flowcell, version=__version__),
+        attachments=log_files,
     )
 
 
