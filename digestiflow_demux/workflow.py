@@ -226,10 +226,10 @@ def create_sample_sheet(config, input_dir, output_dir):
 
 
 def send_flowcell_success_message(client, flowcell, output_dir):
-    client.message_send(
+    return client.message_send(
         flowcell_uuid=flowcell["sodar_uuid"],
-        subject="Demultiplexing failed for flow cell %s" % flowcell["vendor_id"],
-        body=TPL_MSG_FAILURE.format(flowcell=flowcell, version=__version__),
+        subject="Demultiplexing succeeded for flow cell %s" % flowcell["vendor_id"],
+        body=TPL_MSG_SUCCESS.format(flowcell=flowcell, version=__version__),
         attachments=[
             os.path.join(output_dir, "multiqc/multiqc_report.html"),
             os.path.join(output_dir, "multiqc/multiqc_data.zip"),
@@ -238,9 +238,9 @@ def send_flowcell_success_message(client, flowcell, output_dir):
 
 
 def send_flowcell_failure_message(client, flowcell):
-    client.message_send(
+    return client.message_send(
         flowcell_uuid=flowcell["sodar_uuid"],
-        subject="Demultiplexing failed for flow cell %s" % flowcell["vendor_id"],
+        subject="Demultiplexing FAILED for flow cell %s" % flowcell["vendor_id"],
         body=TPL_MSG_FAILURE.format(flowcell=flowcell, version=__version__),
     )
 
@@ -287,7 +287,7 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
         failure = True
 
     if not failure:
-        send_flowcell_success_message(client, flowcell, output_dir)
+        message = send_flowcell_success_message(client, flowcell, output_dir)
         logging.info("Marking flowcell as complete...")
         try:
             client.flowcell_update(flowcell["sodar_uuid"], status_conversion="complete")
@@ -295,13 +295,15 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
             logging.warning("Could not update conversion state to complete via API: %s", e)
         logging.info("Done running Snakemake.")
     elif flowcell:
-        send_flowcell_failure_message(client, flowcell)
+        message = send_flowcell_failure_message(client, flowcell)
         logging.info("Marking flowcell as failed...")
         try:
             client.flowcell_update(flowcell["sodar_uuid"], status_conversion="failed")
         except ApiException as e:
             logging.warning("Could not update conversion state to failed via API: %s", e)
-    return not failure
+    else:
+        message = None
+    return (not failure, message, flowcell, client)
 
 
 def perform_demultiplexing(config, input_dir, output_dir):
@@ -314,7 +316,7 @@ def perform_demultiplexing(config, input_dir, output_dir):
 
     flowcell = create_sample_sheet(config, input_dir, output_dir)
     if not flowcell:
-        return False
+        return False, None, None, None
 
     if config.work_dir:
         logging.info("Using work directory %s", config.work_dir)

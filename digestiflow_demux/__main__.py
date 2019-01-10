@@ -6,6 +6,8 @@ import argparse
 import logging
 
 import attr
+import coloredlogs
+import tempfile
 import toml
 
 from .exceptions import ApiProblemException
@@ -48,8 +50,11 @@ class DemuxConfig:
     #: Whether or not to log the API token
     log_api_token = attr.ib()
 
+    #: Path to temporary logging file
+    log_path = attr.ib()
+
     @classmethod
-    def build(cls, config):
+    def build(cls, config, log_path=None):
         """Construct a new ``DemuxConfig`` object from configuration ``dict``."""
         return cls(
             api_url=config["web"]["url"],
@@ -63,24 +68,30 @@ class DemuxConfig:
             verbose=config["verbose"],
             quiet=config["quiet"],
             log_api_token=config["log_api_token"],
+            log_path=log_path,
         )
 
 
 def setup_logging(demux_config):
     """Setup logging based on ``demux_config``."""
     logger = logging.getLogger()
+    # Clear logging handlers.
     logger.handlers = []
-    handler = logging.StreamHandler()
+
+    # Setup logging to stderr
+    if demux_config.quiet:
+        coloredlogs.install(level=logging.WARN, logger=logger)
+    elif demux_config.verbose:
+        coloredlogs.install(level=logging.DEBUG, logger=logger)
+    else:
+        coloredlogs.install(level=logging.INFO, logger=logger)
+
+    # Setup logging to temporary file for later posting
+    handler = logging.FileHandler(os.path.join(demux_config.log_path, "digestiflow-demux.log"))
     formatter = logging.Formatter("%(asctime)s %(levelname)-8s %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    if demux_config.quiet:
-        level = logging.WARN
-    elif demux_config.verbose:
-        level = logging.DEBUG
-    else:
-        level = logging.INFO
-    logger.setLevel(level)
+    return handler  # so we can later flush()
 
 
 def load_config():
@@ -131,7 +142,7 @@ def merge_config_args(config, args):
     return config
 
 
-def run(config, output_dir, input_dirs):
+def run(config, output_dir, input_dirs, log_handler):
     """Main entry point (after parsing command line options)."""
     marker_file = os.path.join(output_dir, "DIGESTIFLOW_DEMUX_DONE.txt")
     if os.path.exists(marker_file):
@@ -150,8 +161,23 @@ def run(config, output_dir, input_dirs):
         input_dir = os.path.realpath(input_dir)
         output_dir = os.path.join(base_output_dir, os.path.basename(input_dir))
         try:
-            if not perform_demultiplexing(config, input_dir, output_dir):
-                logging.info("Demultiplexing was not performed (flow cel not registered?)")
+            success, message, flowcell, client = perform_demultiplexing(
+                config, input_dir, output_dir
+            )
+            if not success:
+                any_failure = True
+                logging.info(
+                    "Demultiplexing was not performed (flow cell not registered or not ready?)"
+                )
+            if message and flowcell:
+                # Append log file to message in Digestiflow Web
+                log_handler.flush()
+                client.message_attach(
+                    flowcell["sodar_uuid"], message["sodar_uuid"], log_handler.stream
+                )
+                # Truncate file after this flow cell to prevent confusion.
+                logging.debug("Starting new log file for new flow cell")
+                log_handler.stream.truncate()
         except ApiProblemException as e:
             logging.warning("There was an API problem for the flow cell. %s", e)
             logging.warning("Will continue but program will have non-zero return code.")
@@ -232,19 +258,17 @@ def main(argv=None):
     # Load configuration and merge with arguments.
     config = merge_config_args(load_config(), args)
 
-    # Construct ``DemuxConfig`` from merge result and check the configuration values.
-    demux_config = DemuxConfig.build(config)
-    if not demux_config.api_url:
-        logging.error("The URL to the API has not been specified!")
-        return 1
-    if not demux_config.api_token:
-        logging.error("The API token has not been specified.")
-        return 1
-    if not demux_config.project_uuid:
-        logging.error("The project UUID is missing")
-        return 1
-
-    # Setup logging.
-    setup_logging(demux_config)
-
-    return run(demux_config, args.output_dir, args.input_dirs)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        demux_config = DemuxConfig.build(config, tmpdir)
+        # Construct ``DemuxConfig`` from merge result and check the configuration values.
+        if not demux_config.api_url:
+            logging.error("The URL to the API has not been specified!")
+            return 1
+        if not demux_config.api_token:
+            logging.error("The API token has not been specified.")
+            return 1
+        if not demux_config.project_uuid:
+            logging.error("The project UUID is missing")
+            return 1
+        # Setup logging and launch.
+        return run(demux_config, args.output_dir, args.input_dirs, setup_logging(demux_config))

@@ -87,6 +87,23 @@ class ApiClient:
 
         return message
 
+    def message_attach(self, flowcell_uuid, message_uuid, attachment):
+        url = "/api/attachments/%s/%s/%s/" % (
+            self.project_uuid,
+            flowcell_uuid,
+            message_uuid,
+        )
+        try:
+            with open(attachment.name, "rb") as attachf:
+                res = requests.post(
+                    self.api_url + url, headers=self._headers(), files={"file": attachf}
+                )
+            res.raise_for_status()
+            attachment = res.json()
+        except Exception as e:
+            raise Exception("Problem performing API call") from e
+        return attachment
+
     def sequencer_retrieve(self, sequencer):
         """Get sequencer by name"""
         tpl = "/api/sequencers/by-vendor-id/%s/%s/"

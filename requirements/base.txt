@@ -11,3 +11,6 @@ attrs >=18.2.0
 
 # We use requests for accessing the API
 requests
+
+# Colorful logging
+coloredlogs =10.0
