@@ -13,4 +13,4 @@ attrs >=18.2.0
 requests
 
 # Colorful logging
-coloredlogs =10.0
+coloredlogs ==10.0
