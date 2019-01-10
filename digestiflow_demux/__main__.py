@@ -169,7 +169,7 @@ def run(config, output_dir, input_dirs, log_handler):
                 logging.info(
                     "Demultiplexing was not performed (flow cell not registered or not ready?)"
                 )
-            if message and flowcell:
+            if message and flowcell and client:
                 # Append log file to message in Digestiflow Web
                 log_handler.flush()
                 client.message_attach(

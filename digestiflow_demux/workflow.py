@@ -315,7 +315,7 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
             logging.warning("Could not update conversion state to complete via API: %s", e)
         logging.info("Done running Snakemake.")
     elif flowcell:
-        message = send_flowcell_failure_message(client, flowcell)
+        message = send_flowcell_failure_message(client, flowcell, log_file_path)
         logging.info("Marking flowcell as failed...")
         try:
             client.flowcell_update(flowcell["sodar_uuid"], status_conversion="failed")
