@@ -88,11 +88,7 @@ class ApiClient:
         return message
 
     def message_attach(self, flowcell_uuid, message_uuid, attachment):
-        url = "/api/attachments/%s/%s/%s/" % (
-            self.project_uuid,
-            flowcell_uuid,
-            message_uuid,
-        )
+        url = "/api/attachments/%s/%s/%s/" % (self.project_uuid, flowcell_uuid, message_uuid)
         try:
             with open(attachment.name, "rb") as attachf:
                 res = requests.post(

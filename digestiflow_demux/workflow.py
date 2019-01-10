@@ -1,9 +1,14 @@
 """Implementation of the workflow for demultiplexing sequencing directories."""
 
 import csv
+import gzip
+import itertools
 import json
 import logging
 import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -225,16 +230,27 @@ def create_sample_sheet(config, input_dir, output_dir):
     return flowcell  # Everything is fine
 
 
-def send_flowcell_success_message(client, flowcell, output_dir):
-    return client.message_send(
-        flowcell_uuid=flowcell["sodar_uuid"],
-        subject="Demultiplexing succeeded for flow cell %s" % flowcell["vendor_id"],
-        body=TPL_MSG_SUCCESS.format(flowcell=flowcell, version=__version__),
-        attachments=[
-            os.path.join(output_dir, "multiqc/multiqc_report.html"),
-            os.path.join(output_dir, "multiqc/multiqc_data.zip"),
-        ],
-    )
+def send_flowcell_success_message(client, flowcell, output_dir, *log_files):
+    # Create renamed (and potentially compressed files
+    path_in = os.path.join(output_dir, "multiqc/multiqc_%s")
+    with tempfile.TemporaryDirectory() as tempdir:
+        path_out = os.path.join(tempdir, "MultiQC_%%s_%s.%%s" % flowcell["vendor_id"])
+        with open(path_in % "report.html", "rb") as f_in:
+            with gzip.open(path_out % ("Report", ".html.gz"), "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        shutil.copyfile(path_in % "data.zip", path_out % ("Data", ".zip"))
+
+        # Post with renamed files.
+        return client.message_send(
+            flowcell_uuid=flowcell["sodar_uuid"],
+            subject="Demultiplexing succeeded for flow cell %s" % flowcell["vendor_id"],
+            body=TPL_MSG_SUCCESS.format(flowcell=flowcell, version=__version__),
+            attachments=list(
+                itertools.chain(
+                    [path_out % ("Report", ".html.gz"), path_out % ("Data", ".zip")], log_files
+                )
+            ),
+        )
 
 
 def send_flowcell_failure_message(client, flowcell):
@@ -271,23 +287,27 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
     argv = list(map(str, argv))
     logging.info("Executing: snakemake %s", " ".join(argv))
     try:
-        snakemake_args = {
-            "snakefile": PATH_SNAKEFILE,
-            "workdir": work_dir,
-            "configfile": os.path.join(output_dir, "demux_config.json"),
-            "cores": config.cores,
-            "use_conda": True,
-            "verbose": config.verbose,
-            "printshellcmds": config.verbose,
-        }
-        # TODO: save log output of snakemake run and attach to message
-        failure = not snakemake.snakemake(**snakemake_args)
+        # Launch Snakemake
+        proc = subprocess.Popen(
+            ["snakemake"] + argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        # Write output to temporary log file, to be attached later.
+        log_file_path = os.path.join(config.log_path, "digestiflow-demux-snakemake.log")
+        with open(log_file_path, "wb") as log_file:
+            while True:
+                err_line = copy_out(log_file, proc.stderr, sys.stderr)
+                out_line = copy_out(log_file, proc.stdout, sys.stdout)
+                if not err_line and not out_line and proc.poll() is not None:
+                    break
+            copy_out(log_file, proc.stderr, sys.stderr)
+            copy_out(log_file, proc.stdout, sys.stdout)
+        failure = proc.returncode != 0
     except WorkflowError as e:
         logging.warning("Running demultiplexing failed: %s", e)
         failure = True
 
     if not failure:
-        message = send_flowcell_success_message(client, flowcell, output_dir)
+        message = send_flowcell_success_message(client, flowcell, output_dir, log_file_path)
         logging.info("Marking flowcell as complete...")
         try:
             client.flowcell_update(flowcell["sodar_uuid"], status_conversion="complete")
@@ -304,6 +324,17 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
     else:
         message = None
     return (not failure, message, flowcell, client)
+
+
+def copy_out(log_file, stream_in, stream_out):
+    while True:
+        line = stream_in.readline()
+        if line:
+            stream_out.write(line.decode("utf-8"))
+            log_file.write(line)
+        else:
+            break
+    return line
 
 
 def perform_demultiplexing(config, input_dir, output_dir):
