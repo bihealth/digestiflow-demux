@@ -153,10 +153,11 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
         logging.warning('Status is not "ready", will skip flow cell.')
         return None
 
-    try:
-        client.flowcell_update(flowcell["sodar_uuid"], status_conversion="in_progress")
-    except ApiException as e:
-        raise ApiProblemException('Could not update conversion status to "in_progress"') from e
+    if not config.api_read_only:
+        try:
+            client.flowcell_update(flowcell["sodar_uuid"], status_conversion="in_progress")
+        except ApiException as e:
+            raise ApiProblemException('Could not update conversion status to "in_progress"') from e
 
     logging.debug("Querying API for sequencing machine information")
     try:
@@ -306,7 +307,7 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
         logging.warning("Running demultiplexing failed: %s", e)
         failure = True
 
-    if not failure:
+    if not failure and not config.api_read_only:
         message = send_flowcell_success_message(client, flowcell, output_dir, log_file_path)
         logging.info("Marking flowcell as complete...")
         try:
@@ -314,7 +315,7 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
         except ApiException as e:
             logging.warning("Could not update conversion state to complete via API: %s", e)
         logging.info("Done running Snakemake.")
-    elif flowcell:
+    elif flowcell and not config.api_read_only:
         message = send_flowcell_failure_message(client, flowcell, log_file_path)
         logging.info("Marking flowcell as failed...")
         try:

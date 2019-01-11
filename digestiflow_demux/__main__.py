@@ -183,9 +183,10 @@ def run(config, output_dir, input_dirs, log_handler):
             if message and flowcell and client:
                 # Append log file to message in Digestiflow Web
                 log_handler.flush()
-                client.message_attach(
-                    flowcell["sodar_uuid"], message["sodar_uuid"], log_handler.stream
-                )
+                if not args.api_read_only:
+                    client.message_attach(
+                        flowcell["sodar_uuid"], message["sodar_uuid"], log_handler.stream
+                    )
                 # Truncate file after this flow cell to prevent confusion.
                 logging.debug("Starting new log file for new flow cell")
                 log_handler.stream.truncate()
