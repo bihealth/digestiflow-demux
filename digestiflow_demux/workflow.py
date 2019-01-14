@@ -12,7 +12,6 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
-import snakemake
 from snakemake.exceptions import WorkflowError
 
 from digestiflow_demux import __version__
@@ -28,7 +27,7 @@ The demultiplexing succeeded for flow cell {flowcell[vendor_id]}.
 
 See the attached files for quality reports.
 
--- 
+--
 This message was auto-created by digestiflow-demux v{version}.
 """
 
@@ -38,7 +37,7 @@ The attempted demultiplexing for flow cell {flowcell[vendor_id]} has failed.
 
 To try again, clean up any output files and mark as "ready" for demultiplexing again.
 
--- 
+--
 This message was auto-created by digestiflow-demux v{version}.
 """
 
@@ -127,7 +126,7 @@ def load_run_info(path_run_info_xml):
     }
 
 
-def create_sample_sheet(config, input_dir, output_dir):
+def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     """Query the Digestiflow API for the necessary information for building the sample sheet."""
     logging.info("Perform API queries and create sample sheet")
     client = ApiClient(

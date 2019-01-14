@@ -10,12 +10,12 @@ __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 shell.executable("/bin/bash")
 
 # Get number of barcode mismatches, defaults to 1 for bcl2fastq v2.
-barcode_mismatches = snakemake.config.get("barcode_mismatches")
+barcode_mismatches = snakemake.config.get("barcode_mismatches")  # noqa
 if barcode_mismatches is None:
     barcode_mismatches = 1
 
 # More than 8 threads will not work for bcl2fastq.
-bcl2fastq_threads = min(8, snakemake.config["cores"])
+bcl2fastq_threads = min(8, snakemake.config["cores"])  # noqa
 
 shell(
     r"""
