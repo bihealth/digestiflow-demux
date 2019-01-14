@@ -1,5 +1,6 @@
 """Implementation of the workflow for demultiplexing sequencing directories."""
 
+import collections
 import csv
 import gzip
 import itertools
@@ -104,6 +105,67 @@ def write_sample_sheet_v2(writer, flowcell, libraries):
             rows.append(row)
     for row in sorted(rows):
         writer.writerow(list(map(str, row)))
+
+
+def write_sample_sheet_picard(flowcell, libraries, output_dir):
+    """Write picard sample sheets, one per lane."""
+    dual_indexing = any(library["barcode2"] for library in libraries)
+    if not dual_indexing:
+        head_barcodes = ["barcode_sequence_1", "barcode_name", "library_name"]
+        head_samplesheet = ["OUTPUT_PREFIX", "BARCODE_1"]
+    else:
+        head_barcodes = ["barcode_sequence_1", "barcode_sequence_2", "barcode_name", "library_name"]
+        head_samplesheet = ["OUTPUT_PREFIX", "BARCODE_1", "BARCODE_2"]
+
+    # re-shuffle dict from lib - lane - barcode to lane - lib - barcode because picard works on lanes
+    d = collections.defaultdict(dict)
+    for lib in libraries:
+        for lane in sorted(lib["lanes"]):
+            d[lane][lib["name"]] = lib
+
+    # add Undetermined to samplesheet as picard crashes otherwise
+    for lane in d:
+        d[lane]["Undetermined"] = {"name": "Undetermined", "barcode": "N", "barcode2": ""}
+        if dual_indexing:
+            d[lane]["Undetermined"]["barcode2"] = "N"
+
+    for lane, libraries in d.items():
+        barcode_rows = []
+        samples_rows = []
+        for lib in libraries.values():
+            print(lib)
+            output_prefix = "{name}/{flowcell}/L{lane:03d}/{name}".format(
+                name=lib["name"], flowcell=flowcell["vendor_id"], lane=lane
+            )
+
+            if dual_indexing:
+                # we do not pass the barcodes names, so we use the sample name.
+                barcode_row = [lib["barcode"], lib["barcode2"], lib["name"], lib["name"]]
+                samples_row = [output_prefix, lib["barcode"], lib["barcode2"]]
+            else:
+                barcode_row = [lib["barcode"], lib["name"], lib["name"]]
+                samples_row = [output_prefix, lib["barcode"]]
+
+            # barcode file should not contain dummy for unbarcoded reads, but samplesheet must.
+            if not lib["name"] == "Undetermined":
+                barcode_rows.append(barcode_row)
+            samples_rows.append(samples_row)
+
+        os.makedirs(os.path.join(output_dir, "picard_barcodes/{}".format(lane)), exist_ok=True)
+
+        with open(os.path.join(output_dir, "picard_barcodes/{}/barcodes.txt".format(lane)), "w") as bf, open(
+            os.path.join(output_dir, "picard_barcodes/{}/samplesheet.txt".format(lane)), "w"
+        ) as sf:
+            barcodewriter = csv.writer(bf, delimiter="\t")
+            sampleswriter = csv.writer(sf, delimiter="\t")
+
+            barcodewriter.writerow(head_barcodes)
+            sampleswriter.writerow(head_samplesheet)
+
+            for row in sorted(barcode_rows):
+                barcodewriter.writerow(list(map(str, row)))
+            for row in sorted(samples_rows):
+                sampleswriter.writerow(list(map(str, row)))
 
 
 def reverse_complement(seq):
@@ -219,13 +281,17 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             "flowcell": {**flowcell, "libraries": libraries},
             "tiles": config.tiles,
             "lanes": config.lanes,
+            "demux_tool": config.demux_tool,
         }
         json.dump(config_json, jsonf)
 
     logging.debug("Writing out sample sheet information")
-    with open(os.path.join(output_dir, "SampleSheet.csv"), "wt") as csvf:
-        funcs = {1: write_sample_sheet_v1, 2: write_sample_sheet_v2}
-        funcs[flowcell["rta_version"]](csv.writer(csvf), flowcell, libraries)
+    if config.demux_tool == "bcl2fastq":
+        with open(os.path.join(output_dir, "SampleSheet.csv"), "wt") as csvf:
+            funcs = {1: write_sample_sheet_v1, 2: write_sample_sheet_v2}
+            funcs[flowcell["rta_version"]](csv.writer(csvf), flowcell, libraries)
+    else:
+        write_sample_sheet_picard(flowcell, libraries, output_dir)
 
     return flowcell  # Everything is fine
 
