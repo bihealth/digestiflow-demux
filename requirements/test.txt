@@ -1,0 +1,5 @@
+-r base.txt
+
+flake8 ==3.6.0
+
+black ==18.9b0
