@@ -14,6 +14,12 @@ barcode_mismatches = snakemake.config.get("barcode_mismatches")
 if barcode_mismatches is None:
     barcode_mismatches = 0
 
+# Consider tiles to process.
+tiles = snakemake.config.get("tiles")
+if not tiles:
+    tiles = ""
+else:
+    tiles = "TILE_LIMIT=1".format(tiles)
 
 shell(
     r"""
@@ -26,14 +32,12 @@ set -x
 export TMPDIR=$(mktemp -d)
 mkdir -p $TMPDIR
 
-pushd {snakemake.params.output_dir}
+pushd $TMPDIR
 
 for sheet in {snakemake.input.sheets}; do
     prep_dir=$(dirname $sheet)
     lane=$(basename $prep_dir)
-
-    echo $lane
-    echo $sheet
+    mkdir -p $lane
 
     head -n 1000 $sheet
 
@@ -47,8 +51,28 @@ for sheet in {snakemake.input.sheets}; do
         FLOWCELL_BARCODE={snakemake.params.flowcell_token} \
         MACHINE_NAME={snakemake.params.machine_name} \
         NUM_PROCESSORS={snakemake.threads} \
-        COMPRESS_OUTPUTS=true
+        COMPRESS_OUTPUTS=true {tiles}
 
+    # Move files to destination
+    for path in $lane/*.fastq.gz; do
+        sample=$(basename ${{path%%.fastq.gz}})
+        read=${{sample##*.}} # 1, 2, barcode_1, barcode_2
+        sample=${{sample%%.*}}
+        flowcell={snakemake.params.flowcell_token}
+        lane_name=L$(printf "%03d" $lane)
+
+        # Add R to read files 1 and 2
+        if [[ ${{#read}} -eq 1 ]]; then
+            read=R${{read}}
+        fi
+
+        dest={snakemake.params.output_dir}/$sample/$flowcell/$lane_name/${{sample}}_${{lane_name}}_${{read}}_001.fastq.gz
+        cp -dR $path $dest
+        pushd $(dirname $dest)
+        md5sum $(basename $dest) >$(basename $dest).md5
+        popd
+
+    done
 done
 
 popd

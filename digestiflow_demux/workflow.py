@@ -133,8 +133,7 @@ def write_sample_sheet_picard(flowcell, libraries, output_dir):
         barcode_rows = []
         samples_rows = []
         for lib in libraries.values():
-            print(lib)
-            output_prefix = "{name}/{flowcell}/L{lane:03d}/{name}".format(
+            output_prefix = "{lane}/{name}".format(
                 name=lib["name"], flowcell=flowcell["vendor_id"], lane=lane
             )
 

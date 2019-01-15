@@ -61,7 +61,7 @@ def undetermined_libraries(flowcell):
     for lane in lanes:
         result.append(
             {
-                "name": library["name"],
+                "name": "Undetermined",
                 "reference": library["reference"],
                 "barcode": "Undetermined",
                 "barcode2": "Undetermined",
@@ -120,7 +120,7 @@ def get_result_files_demux(config):
         return os.path.join(config["output_dir"], path)
 
     flowcell = config["flowcell"]
-    is_paired = flowcell["planned_reads"].count("T") > 1
+    is_paired = flowcell["current_reads"].count("T") > 1
     sample_map = build_sample_map(flowcell)
 
     for lib in flowcell["libraries"] + undetermined_libraries(flowcell):
@@ -138,7 +138,7 @@ def get_result_files_demux(config):
                 lane=lane,
             )
 
-            if config["rta_version"] == 1:
+            if config["rta_version"] == 1 or config["demux_tool"] == "picard":
                 for fname in lib_file_names(lib, config["rta_version"], is_paired, lane):
                     yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
             else:
