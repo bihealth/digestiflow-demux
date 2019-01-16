@@ -9,13 +9,8 @@ __author__ = "Clemens Messerschmidt <clemens.messerschmidt@bihealth.de>"
 
 shell.executable("/bin/bash")
 
-# Get number of barcode mismatches, defaults to 0 for bcl2fastq v1.
-barcode_mismatches = snakemake.config.get("barcode_mismatches")
-if barcode_mismatches is None:
-    barcode_mismatches = 0
-
 # Consider tiles to process.
-tiles = snakemake.config.get("tiles")
+tiles = snakemake.config.get("tiles") # noqa
 if not tiles:
     tiles = ""
 else:

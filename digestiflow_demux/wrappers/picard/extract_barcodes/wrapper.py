@@ -9,10 +9,10 @@ __author__ = "Clemens Messerschmidt <clemens.messerschmidt@bihealth.de>"
 
 shell.executable("/bin/bash")
 
-# Get number of barcode mismatches, defaults to 0 for bcl2fastq v1.
-barcode_mismatches = snakemake.config.get("barcode_mismatches")
+# Get number of barcode mismatches, defaults to 1.
+barcode_mismatches = snakemake.config.get("barcode_mismatches") # noqa
 if barcode_mismatches is None:
-    barcode_mismatches = 0
+    barcode_mismatches = 1
 
 
 shell(
@@ -34,7 +34,8 @@ picard ExtractIlluminaBarcodes \
     LANE={snakemake.wildcards.lane} \
     METRICS_FILE={snakemake.output} \
     OUTPUT_DIR=$(dirname {snakemake.output}) \
-    READ_STRUCTURE={snakemake.params.read_structure}
+    READ_STRUCTURE={snakemake.params.read_structure} \
+    MAX_MISMATCHES={barcode_mismatches}
 
 """
 )
