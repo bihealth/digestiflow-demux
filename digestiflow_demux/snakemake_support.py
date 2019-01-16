@@ -77,7 +77,7 @@ def lib_file_names(library, rta_version, is_paired, lane=None, seq=None, name=No
     assert rta_version in (1, 2)
     indices = [library["barcode"] or "NoIndex"]
     reads = ("R1", "R2") if is_paired else ("R1",)
-    lanes = ["L{03d}".format(lno) for lno in library["lanes"] if lane is None or lno == lane]
+    lanes = ["L{:03d}".format(lno) for lno in library["lanes"] if lane is None or lno == lane]
     if seq is None:
         seq = ""
     else:
