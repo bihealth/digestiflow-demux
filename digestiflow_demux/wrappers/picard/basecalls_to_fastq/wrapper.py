@@ -10,7 +10,7 @@ __author__ = "Clemens Messerschmidt <clemens.messerschmidt@bihealth.de>"
 shell.executable("/bin/bash")
 
 # Consider tiles to process.
-tiles = snakemake.config.get("tiles") # noqa
+tiles = snakemake.config.get("tiles")  # noqa
 if not tiles:
     tiles = ""
 else:

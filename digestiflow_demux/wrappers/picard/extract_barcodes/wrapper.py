@@ -10,7 +10,7 @@ __author__ = "Clemens Messerschmidt <clemens.messerschmidt@bihealth.de>"
 shell.executable("/bin/bash")
 
 # Get number of barcode mismatches, defaults to 1.
-barcode_mismatches = snakemake.config.get("barcode_mismatches") # noqa
+barcode_mismatches = snakemake.config.get("barcode_mismatches")  # noqa
 if barcode_mismatches is None:
     barcode_mismatches = 1
 

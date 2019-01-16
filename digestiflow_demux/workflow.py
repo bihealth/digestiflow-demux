@@ -152,7 +152,9 @@ def write_sample_sheet_picard(flowcell, libraries, output_dir):
 
         os.makedirs(os.path.join(output_dir, "picard_barcodes/{}".format(lane)), exist_ok=True)
 
-        with open(os.path.join(output_dir, "picard_barcodes/{}/barcodes.txt".format(lane)), "w") as bf, open(
+        with open(
+            os.path.join(output_dir, "picard_barcodes/{}/barcodes.txt".format(lane)), "w"
+        ) as bf, open(
             os.path.join(output_dir, "picard_barcodes/{}/samplesheet.txt".format(lane)), "w"
         ) as sf:
             barcodewriter = csv.writer(bf, delimiter="\t")
