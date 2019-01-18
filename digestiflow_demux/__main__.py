@@ -28,6 +28,8 @@ class DemuxConfig:
     api_url = attr.ib()
     #: Token for Digestiflow Web API
     api_token = attr.ib(repr=False)
+    #: Whether or not to write back to web API
+    api_read_only = attr.ib()
     #: The project UUID to register the flowcell in
     project_uuid = attr.ib()
 
@@ -36,6 +38,8 @@ class DemuxConfig:
     #: Working directory
     work_dir = attr.ib()
 
+    #: Select demultiplexing tool
+    demux_tool = attr.ib()
     #: Select tiles
     tiles = attr.ib()
     #: Select lanes
@@ -59,6 +63,8 @@ class DemuxConfig:
         return cls(
             api_url=config["web"]["url"],
             api_token=config["web"]["token"],
+            api_read_only=config["web"]["api_read_only"],
+            demux_tool=config["demux"]["demux_tool"],
             project_uuid=config["demux"]["project_uuid"],
             keep_work_dir=config["demux"]["keep_work_dir"],
             work_dir=config["demux"]["work_dir"],
@@ -118,7 +124,12 @@ def merge_config_args(config, args):
     config.setdefault("web", {}).setdefault("token", None)
     if args.api_token:
         config.setdefault("web", {})["token"] = args.api_url
+    config.setdefault("web", {}).setdefault("api_read_only", None)
+    if args.api_read_only:
+        config["web"]["api_read_only"] = args.api_read_only
     config.setdefault("demux", {}).setdefault("project_uuid", None)
+    if args.demux_tool:
+        config["demux"]["demux_tool"] = args.demux_tool
     if args.project_uuid:
         config["demux"]["project_uuid"] = args.project_uuid
     config.setdefault("demux", {}).setdefault("keep_work_dir", False)
@@ -172,9 +183,10 @@ def run(config, output_dir, input_dirs, log_handler):
             if message and flowcell and client:
                 # Append log file to message in Digestiflow Web
                 log_handler.flush()
-                client.message_attach(
-                    flowcell["sodar_uuid"], message["sodar_uuid"], log_handler.stream
-                )
+                if not config.api_read_only:
+                    client.message_attach(
+                        flowcell["sodar_uuid"], message["sodar_uuid"], log_handler.stream
+                    )
                 # Truncate file after this flow cell to prevent confusion.
                 logging.debug("Starting new log file for new flow cell")
                 log_handler.stream.truncate()
@@ -195,6 +207,12 @@ def main(argv=None):
     # Setup argument parser and parse command line arguments.
     parser = argparse.ArgumentParser(description="Run demultiplexing for Digestiflow")
 
+    parser.add_argument(
+        "--demux-tool",
+        choices=["bcl2fastq", "picard"],
+        default="bcl2fastq",
+        help="Demultiplexing tool to use. Choices are Illumina's bcl2fastq(2) and Picard",
+    )
     parser.add_argument("--version", action="version", version="%(prog)s {}".format(__version__))
     parser.add_argument("--api-url", help="URL to Digestiflow Web API")
     parser.add_argument(
@@ -207,6 +225,9 @@ def main(argv=None):
             "Create log entry with API token (debug level; use only when debugging as this "
             "has security implications)"
         ),
+    )
+    parser.add_argument(
+        "--api-read-only", action="store_true", help="Do not write/update flowcell info to database"
     )
     parser.add_argument("--project-uuid", help="Project UUID to register flowcell for")
     parser.add_argument("--cores", type=int, help="Degree of parallelism to use")
@@ -249,7 +270,8 @@ def main(argv=None):
         dest="tiles",
         help=(
             "Select tile regex; provide multiple times for multiple "
-            "regexes; conflicts with --lane"
+            "regexes with bcl2fastq. Picard will use the first tile. "
+            "Conflicts with --lane"
         ),
     )
 

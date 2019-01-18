@@ -1,5 +1,6 @@
 """Implementation of the workflow for demultiplexing sequencing directories."""
 
+import collections
 import csv
 import gzip
 import itertools
@@ -106,6 +107,68 @@ def write_sample_sheet_v2(writer, flowcell, libraries):
         writer.writerow(list(map(str, row)))
 
 
+def write_sample_sheet_picard(flowcell, libraries, output_dir):
+    """Write picard sample sheets, one per lane."""
+    dual_indexing = any(library["barcode2"] for library in libraries)
+    if not dual_indexing:
+        head_barcodes = ["barcode_sequence_1", "barcode_name", "library_name"]
+        head_samplesheet = ["OUTPUT_PREFIX", "BARCODE_1"]
+    else:
+        head_barcodes = ["barcode_sequence_1", "barcode_sequence_2", "barcode_name", "library_name"]
+        head_samplesheet = ["OUTPUT_PREFIX", "BARCODE_1", "BARCODE_2"]
+
+    # re-shuffle dict from lib - lane - barcode to lane - lib - barcode because picard works on lanes
+    d = collections.defaultdict(dict)
+    for lib in libraries:
+        for lane in sorted(lib["lanes"]):
+            d[lane][lib["name"]] = lib
+
+    # add Undetermined to samplesheet as picard crashes otherwise
+    for lane in d:
+        d[lane]["Undetermined"] = {"name": "Undetermined", "barcode": "N", "barcode2": ""}
+        if dual_indexing:
+            d[lane]["Undetermined"]["barcode2"] = "N"
+
+    for lane, libraries in d.items():
+        barcode_rows = []
+        samples_rows = []
+        for lib in libraries.values():
+            output_prefix = "{lane}/{name}".format(
+                name=lib["name"], flowcell=flowcell["vendor_id"], lane=lane
+            )
+
+            if dual_indexing:
+                # we do not pass the barcodes names, so we use the sample name.
+                barcode_row = [lib["barcode"], lib["barcode2"], lib["name"], lib["name"]]
+                samples_row = [output_prefix, lib["barcode"], lib["barcode2"]]
+            else:
+                barcode_row = [lib["barcode"], lib["name"], lib["name"]]
+                samples_row = [output_prefix, lib["barcode"]]
+
+            # barcode file should not contain dummy for unbarcoded reads, but samplesheet must.
+            if not lib["name"] == "Undetermined":
+                barcode_rows.append(barcode_row)
+            samples_rows.append(samples_row)
+
+        os.makedirs(os.path.join(output_dir, "picard_barcodes/{}".format(lane)), exist_ok=True)
+
+        with open(
+            os.path.join(output_dir, "picard_barcodes/{}/barcodes.txt".format(lane)), "w"
+        ) as bf, open(
+            os.path.join(output_dir, "picard_barcodes/{}/samplesheet.txt".format(lane)), "w"
+        ) as sf:
+            barcodewriter = csv.writer(bf, delimiter="\t")
+            sampleswriter = csv.writer(sf, delimiter="\t")
+
+            barcodewriter.writerow(head_barcodes)
+            sampleswriter.writerow(head_samplesheet)
+
+            for row in sorted(barcode_rows):
+                barcodewriter.writerow(list(map(str, row)))
+            for row in sorted(samples_rows):
+                sampleswriter.writerow(list(map(str, row)))
+
+
 def reverse_complement(seq):
     """Return reverse-complemented version of ``seq``."""
     mapping = {"A": "T", "a": "t", "C": "G", "c": "g", "G": "C", "g": "c", "T": "A", "t": "a"}
@@ -153,10 +216,11 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
         logging.warning('Status is not "ready", will skip flow cell.')
         return None
 
-    try:
-        client.flowcell_update(flowcell["sodar_uuid"], status_conversion="in_progress")
-    except ApiException as e:
-        raise ApiProblemException('Could not update conversion status to "in_progress"') from e
+    if not config.api_read_only:
+        try:
+            client.flowcell_update(flowcell["sodar_uuid"], status_conversion="in_progress")
+        except ApiException as e:
+            raise ApiProblemException('Could not update conversion status to "in_progress"') from e
 
     logging.debug("Querying API for sequencing machine information")
     try:
@@ -218,13 +282,17 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             "flowcell": {**flowcell, "libraries": libraries},
             "tiles": config.tiles,
             "lanes": config.lanes,
+            "demux_tool": config.demux_tool,
         }
         json.dump(config_json, jsonf)
 
     logging.debug("Writing out sample sheet information")
-    with open(os.path.join(output_dir, "SampleSheet.csv"), "wt") as csvf:
-        funcs = {1: write_sample_sheet_v1, 2: write_sample_sheet_v2}
-        funcs[flowcell["rta_version"]](csv.writer(csvf), flowcell, libraries)
+    if config.demux_tool == "bcl2fastq":
+        with open(os.path.join(output_dir, "SampleSheet.csv"), "wt") as csvf:
+            funcs = {1: write_sample_sheet_v1, 2: write_sample_sheet_v2}
+            funcs[flowcell["rta_version"]](csv.writer(csvf), flowcell, libraries)
+    else:
+        write_sample_sheet_picard(flowcell, libraries, output_dir)
 
     return flowcell  # Everything is fine
 
@@ -306,7 +374,7 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
         logging.warning("Running demultiplexing failed: %s", e)
         failure = True
 
-    if not failure:
+    if not failure and not config.api_read_only:
         message = send_flowcell_success_message(client, flowcell, output_dir, log_file_path)
         logging.info("Marking flowcell as complete...")
         try:
@@ -314,7 +382,7 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
         except ApiException as e:
             logging.warning("Could not update conversion state to complete via API: %s", e)
         logging.info("Done running Snakemake.")
-    elif flowcell:
+    elif flowcell and not config.api_read_only:
         message = send_flowcell_failure_message(client, flowcell, log_file_path)
         logging.info("Marking flowcell as failed...")
         try:
