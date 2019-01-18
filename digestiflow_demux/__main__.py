@@ -270,7 +270,8 @@ def main(argv=None):
         dest="tiles",
         help=(
             "Select tile regex; provide multiple times for multiple "
-            "regexes; conflicts with --lane"
+            "regexes with bcl2fastq. Picard will use the first tile. "
+            "Conflicts with --lane"
         ),
     )
 

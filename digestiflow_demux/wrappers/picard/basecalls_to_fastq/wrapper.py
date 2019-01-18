@@ -14,7 +14,7 @@ tiles = snakemake.config.get("tiles")  # noqa
 if not tiles:
     tiles = ""
 else:
-    tiles = "TILE_LIMIT=1".format(tiles)
+    tiles = "TILE_LIMIT=1"
 
 shell(
     r"""
