@@ -59,7 +59,8 @@ def write_sample_sheet_v1(writer, flowcell, libraries):
     ]
     writer.writerow(header)
 
-    recipe = "PE_indexing" if flowcell["planned_reads"].count("T") > 1 else "SE_indexing"
+    demux_reads = flowcell.get("demux_reads", flowcell["planned_reads"])
+    recipe = "PE_indexing" if demux_reads.count("T") > 1 else "SE_indexing"
     for lib in libraries:
         if lib["barcode2"]:
             barcode = "".join((lib["barcode"], "-", lib["barcode2"]))

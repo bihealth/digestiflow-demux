@@ -11,11 +11,15 @@ from digestiflow_demux.snakemake_support import (
 )
 
 # -------------------------------------------------------------------------------------------------
-# Helper Function
+# Helper Functions
 
 
 def out_prefix(path):
     return os.path.join(config["output_dir"], path)
+
+
+def demux_reads(flowcell):
+    return flowcell.get("demux_reads", flowcell["planned_reads"])
 
 # -------------------------------------------------------------------------------------------------
 # Define local rules.
@@ -50,7 +54,7 @@ if config["demux_tool"] == "bcl2fastq":
 elif config["demux_tool"] == "picard" and config["rta_version"] == 2:
     ruleorder: demux_picard > demux
 else:
-    raise("Picard might only be used with rta version 2 at the moment")
+    raise("Picard can only be used with rta version 2 at the moment")
 
 rule demux:
     input: out_prefix("SampleSheet.csv")
@@ -76,7 +80,7 @@ rule demux_picard:
         machine_name=config["flowcell"]["sequencing_machine"],
         flowcell_token=config["flowcell"]["vendor_id"],
         run_number=config["flowcell"]["run_number"],
-        read_structure=config["flowcell"]["current_reads"],
+        read_structure=demux_reads(config["flowcell"]),
         input_dir=config["input_dir"],
         output_dir=config["output_dir"],
         tiles_arg=get_tiles_arg(config),
@@ -89,7 +93,7 @@ rule prepare_picard:
     output: out_prefix("picard_barcodes/{lane}/metrics.txt")
     params:
         flowcell_token=config["flowcell"]["vendor_id"],
-        read_structure=config["flowcell"]["current_reads"],
+        read_structure=demux_reads(config["flowcell"]),
         input_dir=config["input_dir"],
     threads: config["cores"]
     wrapper: wrapper_path("picard/extract_barcodes")

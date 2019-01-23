@@ -120,7 +120,8 @@ def get_result_files_demux(config):
         return os.path.join(config["output_dir"], path)
 
     flowcell = config["flowcell"]
-    is_paired = flowcell["current_reads"].count("T") > 1
+    demux_reads = flowcell.get("demux_reads", flowcell["planned_reads"])
+    is_paired = demux_reads.count("T") > 1
     sample_map = build_sample_map(flowcell)
 
     for lib in flowcell["libraries"] + undetermined_libraries(flowcell):
