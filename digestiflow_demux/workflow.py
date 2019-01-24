@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+from threading import Thread, Lock
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -315,7 +316,7 @@ def send_flowcell_success_message(client, flowcell, output_dir, *log_files):
             body=TPL_MSG_SUCCESS.format(flowcell=flowcell, version=__version__),
             attachments=list(
                 itertools.chain(
-                    [path_out % ("Report", ".html.gz"), path_out % ("Data", ".zip")], log_files
+                    [path_out % ("Report", "html.gz"), path_out % ("Data", "zip")], log_files
                 )
             ),
         )
@@ -328,6 +329,28 @@ def send_flowcell_failure_message(client, flowcell, *log_files):
         body=TPL_MSG_FAILURE.format(flowcell=flowcell, version=__version__),
         attachments=log_files,
     )
+
+
+def async_tee_pipe(process, input_file, out_file, out_file2, mutex):
+    """Async tee-piping from input_file to two output files using the mutex."""
+    logging_thread = Thread(
+        target=tee_pipe, args=(process, input_file, out_file, out_file2, mutex)
+    )
+    logging_thread.start()
+
+    return logging_thread
+
+
+def tee_pipe(process, input_file, out_file, out_stream, mutex):
+    """Tee-piping from input_file to two output files using the mutex."""
+    while 1:
+        line = input_file.readline()
+        if not line and process.poll() is not None:
+            break
+        else:
+            with mutex:
+                out_stream.write(line.decode("utf-8"))
+                out_file.write(line)
 
 
 def launch_snakemake(config, flowcell, output_dir, work_dir):
@@ -361,15 +384,13 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
             ["snakemake"] + argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         # Write output to temporary log file, to be attached later.
-        log_file_path = os.path.join(config.log_path, "digestiflow-demux-snakemake.log")
-        with open(log_file_path, "wb") as log_file:
-            while True:
-                err_line = copy_out(log_file, proc.stderr, sys.stderr)
-                out_line = copy_out(log_file, proc.stdout, sys.stdout)
-                if not err_line and not out_line and proc.poll() is not None:
-                    break
-            copy_out(log_file, proc.stderr, sys.stderr)
-            copy_out(log_file, proc.stdout, sys.stdout)
+        log_file_path = os.path.join(config.log_path, "digestiflow-demux-snakemake.log.gz")
+        with gzip.open(log_file_path, "wb") as log_file:
+            mutex = Lock()
+            logger_stderr = async_tee_pipe(proc, proc.stderr, log_file, sys.stderr, mutex)
+            logger_stdout = async_tee_pipe(proc, proc.stdout, log_file, sys.stdout, mutex)
+            logger_stderr.join()
+            logger_stdout.join()
         failure = proc.returncode != 0
     except WorkflowError as e:
         logging.warning("Running demultiplexing failed: %s", e)
@@ -393,17 +414,6 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
     else:
         message = None
     return (not failure, message, flowcell, client)
-
-
-def copy_out(log_file, stream_in, stream_out):
-    while True:
-        line = stream_in.readline()
-        if line:
-            stream_out.write(line.decode("utf-8"))
-            log_file.write(line)
-        else:
-            break
-    return line
 
 
 def perform_demultiplexing(config, input_dir, output_dir):
