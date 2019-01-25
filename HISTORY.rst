@@ -2,9 +2,9 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
+------
+v0.2.0
+------
 
 - Also writing out log files into target directories.
 - Adding ``--force-demultiplexing`` and ``--only-post-message`` command line arguments.
@@ -13,8 +13,8 @@ HEAD (unreleased)
 - Adding support for ``demux_reads`` value from Digestiflow Web.
 - Adding support for demultiplexing with Picard.
 
-----
-v0.1
-----
+------
+v0.1.0
+------
 
 - Everything is new.
