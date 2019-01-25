@@ -374,7 +374,7 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
 
     if config.only_post_message:
         logging.info("Only posting message, not running demultiplexing itself.")
-        failure = false
+        failure = False
     else:
         argv = [
             "--snakefile",
