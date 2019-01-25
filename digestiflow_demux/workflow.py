@@ -18,7 +18,7 @@ from snakemake.exceptions import WorkflowError
 
 from digestiflow_demux import __version__
 from .api_client import ApiClient, ApiException
-from .exceptions import ApiProblemException
+from .exceptions import ApiProblemException, MissingOutputFile
 
 #: Path to the Snakefile.
 PATH_SNAKEFILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "Snakefile"))
@@ -214,7 +214,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     if flowcell is None:
         logging.warning("Could not resolve flow cell via API. Not proceeding.")
         return None
-    if flowcell["status_conversion"] != "ready":
+    if flowcell["status_conversion"] != "ready" and not config.force_demultiplexing:
         logging.warning('Status is not "ready", will skip flow cell.')
         return None
 
@@ -305,9 +305,9 @@ def send_flowcell_success_message(client, flowcell, output_dir, *log_files):
     with tempfile.TemporaryDirectory() as tempdir:
         path_out = os.path.join(tempdir, "MultiQC_%%s_%s.%%s" % flowcell["vendor_id"])
         with open(path_in % "report.html", "rb") as f_in:
-            with gzip.open(path_out % ("Report", ".html.gz"), "wb") as f_out:
+            with gzip.open(path_out % ("Report", "html.gz"), "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
-        shutil.copyfile(path_in % "data.zip", path_out % ("Data", ".zip"))
+        shutil.copyfile(path_in % "data.zip", path_out % ("Data", "zip"))
 
         # Post with renamed files.
         return client.message_send(
@@ -333,9 +333,7 @@ def send_flowcell_failure_message(client, flowcell, *log_files):
 
 def async_tee_pipe(process, input_file, out_file, out_file2, mutex):
     """Async tee-piping from input_file to two output files using the mutex."""
-    logging_thread = Thread(
-        target=tee_pipe, args=(process, input_file, out_file, out_file2, mutex)
-    )
+    logging_thread = Thread(target=tee_pipe, args=(process, input_file, out_file, out_file2, mutex))
     logging_thread.start()
 
     return logging_thread
@@ -362,39 +360,58 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
         api_url=config.api_url, api_token=config.api_token, project_uuid=config.project_uuid
     )
 
-    argv = [
-        "--snakefile",
-        PATH_SNAKEFILE,
-        "--directory",
-        work_dir,
-        "--configfile",
-        os.path.join(output_dir, "demux_config.json"),
-        "--cores",
-        config.cores,
-        "--use-conda",
-        "--config",
-    ]
-    if config.verbose:
-        argv += ["--verbose", "--printshellcmds"]
-    argv = list(map(str, argv))
-    logging.info("Executing: snakemake %s", " ".join(argv))
-    try:
-        # Launch Snakemake
-        proc = subprocess.Popen(
-            ["snakemake"] + argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        # Write output to temporary log file, to be attached later.
-        log_file_path = os.path.join(config.log_path, "digestiflow-demux-snakemake.log.gz")
-        with gzip.open(log_file_path, "wb") as log_file:
-            mutex = Lock()
-            logger_stderr = async_tee_pipe(proc, proc.stderr, log_file, sys.stderr, mutex)
-            logger_stdout = async_tee_pipe(proc, proc.stdout, log_file, sys.stdout, mutex)
-            logger_stderr.join()
-            logger_stdout.join()
-        failure = proc.returncode != 0
-    except WorkflowError as e:
-        logging.warning("Running demultiplexing failed: %s", e)
-        failure = True
+    output_log_dir = os.path.join(output_dir, "log")
+    output_qc_dir = os.path.join(output_dir, "multiqc")
+    if config.only_post_message:
+        for path in (
+            os.path.join(output_log_dir, "digestiflow-demux-snakemake.log.gz"),
+            os.path.join(output_log_dir, "digestiflow-demux.log"),
+            os.path.join(output_qc_dir, "multiqc_data.zip"),
+            os.path.join(output_qc_dir, "multiqc_report.html"),
+        ):
+            if not os.path.exists(path):
+                raise MissingOutputFile("Cannot post message with %s missing" % path)
+
+    if config.only_post_message:
+        logging.info("Only posting message, not running demultiplexing itself.")
+        failure = false
+    else:
+        argv = [
+            "--snakefile",
+            PATH_SNAKEFILE,
+            "--directory",
+            work_dir,
+            "--configfile",
+            os.path.join(output_dir, "demux_config.json"),
+            "--cores",
+            config.cores,
+            "--use-conda",
+            "--config",
+        ]
+        if config.verbose:
+            argv += ["--verbose", "--printshellcmds"]
+        argv = list(map(str, argv))
+        logging.info("Executing: snakemake %s", " ".join(argv))
+        try:
+            # Launch Snakemake
+            proc = subprocess.Popen(
+                ["snakemake"] + argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            # Write output to temporary log file, to be attached later.
+            log_file_path = os.path.join(config.log_path, "digestiflow-demux-snakemake.log.gz")
+            with gzip.open(log_file_path, "wb") as log_file:
+                mutex = Lock()
+                logger_stderr = async_tee_pipe(proc, proc.stderr, log_file, sys.stderr, mutex)
+                logger_stdout = async_tee_pipe(proc, proc.stdout, log_file, sys.stdout, mutex)
+                logger_stderr.join()
+                logger_stdout.join()
+            # Copy out log file to log directory.
+            os.makedirs(output_log_dir, exist_ok=True)
+            shutil.copy(log_file_path, output_log_dir)
+            failure = proc.returncode != 0
+        except WorkflowError as e:
+            logging.warning("Running demultiplexing failed: %s", e)
+            failure = True
 
     if not failure and not config.api_read_only:
         message = send_flowcell_success_message(client, flowcell, output_dir, log_file_path)

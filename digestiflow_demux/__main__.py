@@ -4,6 +4,7 @@
 import os
 import argparse
 import logging
+import shutil
 
 import attr
 import coloredlogs
@@ -30,6 +31,10 @@ class DemuxConfig:
     api_token = attr.ib(repr=False)
     #: Whether or not to write back to web API
     api_read_only = attr.ib()
+    #: Force demultiplexing even if not marked as ready.
+    force_demultiplexing = attr.ib()
+    #: Whether to only post message for previous run.
+    only_post_message = attr.ib()
     #: The project UUID to register the flowcell in
     project_uuid = attr.ib()
 
@@ -64,6 +69,8 @@ class DemuxConfig:
             api_url=config["web"]["url"],
             api_token=config["web"]["token"],
             api_read_only=config["web"]["api_read_only"],
+            force_demultiplexing=config["web"]["force_demultiplexing"],
+            only_post_message=config["web"]["only_post_message"],
             demux_tool=config["demux"]["demux_tool"],
             project_uuid=config["demux"]["project_uuid"],
             keep_work_dir=config["demux"]["keep_work_dir"],
@@ -124,9 +131,15 @@ def merge_config_args(config, args):
     config.setdefault("web", {}).setdefault("token", None)
     if args.api_token:
         config.setdefault("web", {})["token"] = args.api_url
+    config.setdefault("web", {}).setdefault("force_demultiplexing", None)
+    if args.force_demultiplexing:
+        config["web"]["force_demultiplexing"] = args.force_demultiplexing
     config.setdefault("web", {}).setdefault("api_read_only", None)
     if args.api_read_only:
         config["web"]["api_read_only"] = args.api_read_only
+    config.setdefault("web", {}).setdefault("only_post_message", None)
+    if args.only_post_message:
+        config["web"]["only_post_message"] = args.only_post_message
     config.setdefault("demux", {}).setdefault("project_uuid", None)
     if args.demux_tool:
         config["demux"]["demux_tool"] = args.demux_tool
@@ -178,11 +191,14 @@ def run(config, output_dir, input_dirs, log_handler):
             if not success:
                 any_failure = True
                 logging.info(
-                    "Demultiplexing was not performed (flow cell not registered or not ready?)"
+                    "Demultiplexing failed or was not performed (flow cell not "
+                    "registered or not ready?)"
                 )
+            # Write out log file.
             if message and flowcell and client:
                 # Append log file to message in Digestiflow Web
                 log_handler.flush()
+                shutil.copy(log_handler.stream.name, os.path.join(output_dir, "log"))
                 if not config.api_read_only:
                     client.message_attach(
                         flowcell["sodar_uuid"], message["sodar_uuid"], log_handler.stream
@@ -228,6 +244,14 @@ def main(argv=None):
     )
     parser.add_argument(
         "--api-read-only", action="store_true", help="Do not write/update flowcell info to database"
+    )
+    parser.add_argument(
+        "--only-post-message", action="store_true", help="Only create the success message."
+    )
+    parser.add_argument(
+        "--force-demultiplexing",
+        action="store_true",
+        help="Force demultiplexing even if flow cell not marked as ready",
     )
     parser.add_argument("--project-uuid", help="Project UUID to register flowcell for")
     parser.add_argument("--cores", type=int, help="Degree of parallelism to use")

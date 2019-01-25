@@ -15,3 +15,7 @@ class MissingConfiguration(DemuxAppException):
 
 class InvalidConfiguration(DemuxAppException):
     """Raised on invalid configuration"""
+
+
+class MissingOutputFile(DemuxAppException):
+    """Raised on ``--only-post-message`` and missing output file"""
