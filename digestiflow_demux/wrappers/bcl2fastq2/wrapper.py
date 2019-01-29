@@ -42,7 +42,6 @@ bcl2fastq \
     --runfolder-dir {snakemake.params.input_dir} \
     --output-dir $TMPDIR/demux_out \
     --interop-dir $TMPDIR/interop_dir \
-    --demultiplexing-threads {bcl2fastq_threads} \
     --processing-threads {bcl2fastq_threads} \
     {snakemake.params.tiles_arg}
 

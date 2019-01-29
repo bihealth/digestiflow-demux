@@ -2,6 +2,6 @@ channels:
 - bioconda
 - conda-forge
 - defaults
-#- http://cubi-conda.bihealth.org/cubiconda/
-#dependencies:
-#- bcl2fastq
+- bih-cubi
+dependencies:
+- bcl2fastq

@@ -6,6 +6,12 @@ Digestiflow Demux Changelog
 HEAD (unreleased)
 -----------------
 
+- Enable use of bcl2fastq packages from conda.
+
+------
+v0.2.0
+------
+
 - Also writing out log files into target directories.
 - Adding ``--force-demultiplexing`` and ``--only-post-message`` command line arguments.
 - Wrapped Snakemake call writes ``.gz``-compressed logs now.
