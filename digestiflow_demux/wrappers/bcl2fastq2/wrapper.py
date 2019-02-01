@@ -17,6 +17,11 @@ if barcode_mismatches is None:
 # More than 8 threads will not work for bcl2fastq.
 bcl2fastq_threads = min(8, snakemake.config["cores"])  # noqa
 
+if snakemake.params.read_structure:  # noqa
+    bases_mask = "--use-bases-mask " + snakemake.params.read_structure  # noqa
+else:
+    bases_mask = ""
+
 shell(
     r"""
 set -euo pipefail
@@ -43,7 +48,7 @@ bcl2fastq \
     --output-dir $TMPDIR/demux_out \
     --interop-dir $TMPDIR/interop_dir \
     --processing-threads {bcl2fastq_threads} \
-    {snakemake.params.tiles_arg}
+    {bases_mask} {snakemake.params.tiles_arg}
 
 tree $TMPDIR/demux_out
 
