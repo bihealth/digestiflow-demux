@@ -10,6 +10,8 @@ from digestiflow_demux.snakemake_support import (
     wrapper_path,
 )
 
+from digestiflow_demux.bases_mask import return_bases_mask
+
 # -------------------------------------------------------------------------------------------------
 # Helper Functions
 
@@ -18,8 +20,16 @@ def out_prefix(path):
     return os.path.join(config["output_dir"], path)
 
 
-def demux_reads(flowcell):
-    return flowcell.get("demux_reads", flowcell["planned_reads"])
+def demux_reads(flowcell, demux_tool):
+    demux_reads = flowcell.get("demux_reads") or flowcell["planned_reads"]
+    planned_reads = flowcell["planned_reads"]
+
+    if demux_tool == "bcl2fastq" and demux_reads == planned_reads:
+        return ""
+    elif demux_tool == "bcl2fastq":
+        return return_bases_mask(planned_reads, demux_reads)
+    else:
+        return return_bases_mask(planned_reads, demux_reads, "picard")
 
 # -------------------------------------------------------------------------------------------------
 # Define local rules.
@@ -63,6 +73,7 @@ rule demux:
         flowcell_token=config["flowcell"]["vendor_id"],
         input_dir=config["input_dir"],
         output_dir=config["output_dir"],
+        read_structure=demux_reads(config["flowcell"], config["demux_tool"]),
         tiles_arg=get_tiles_arg(config),
     threads: config["cores"]
     wrapper: wrapper_path(bcl2fastq_wrapper(config))
@@ -80,7 +91,7 @@ rule demux_picard:
         machine_name=config["flowcell"]["sequencing_machine"],
         flowcell_token=config["flowcell"]["vendor_id"],
         run_number=config["flowcell"]["run_number"],
-        read_structure=demux_reads(config["flowcell"]),
+        read_structure=demux_reads(config["flowcell"], config["demux_tool"]),
         input_dir=config["input_dir"],
         output_dir=config["output_dir"],
         tiles_arg=get_tiles_arg(config),
@@ -93,7 +104,7 @@ rule prepare_picard:
     output: out_prefix("picard_barcodes/{lane}/metrics.txt")
     params:
         flowcell_token=config["flowcell"]["vendor_id"],
-        read_structure=demux_reads(config["flowcell"]),
+        read_structure=demux_reads(config["flowcell"], config["demux_tool"]),
         input_dir=config["input_dir"],
     threads: config["cores"]
     wrapper: wrapper_path("picard/extract_barcodes")

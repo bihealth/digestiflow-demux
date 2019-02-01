@@ -3,6 +3,8 @@
 import functools
 import os
 
+from bases_mask import return_bases_mask
+
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
 
@@ -121,6 +123,7 @@ def get_result_files_demux(config):
 
     flowcell = config["flowcell"]
     demux_reads = flowcell.get("demux_reads") or flowcell["planned_reads"]
+    demux_reads = return_bases_mask(flowcell["planned_reads"], demux_reads, "picard")
     is_paired = demux_reads.count("T") > 1
     sample_map = build_sample_map(flowcell)
 

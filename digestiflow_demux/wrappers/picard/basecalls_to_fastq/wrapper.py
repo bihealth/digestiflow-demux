@@ -36,7 +36,8 @@ for sheet in {snakemake.input.sheets}; do
 
     head -n 1000 $sheet
 
-    picard IlluminaBasecallsToFastq \
+    picard -Xmx16g \
+        IlluminaBasecallsToFastq \
         BASECALLS_DIR={snakemake.params.input_dir}/Data/Intensities/BaseCalls \
         READ_STRUCTURE={snakemake.params.read_structure} \
         LANE=$lane \
