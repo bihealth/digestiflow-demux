@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 from snakemake.exceptions import WorkflowError
 
 from digestiflow_demux import __version__
+from .bases_mask import return_bases_mask
 from .api_client import ApiClient, ApiException
 from .exceptions import ApiProblemException, MissingOutputFile
 
@@ -85,6 +86,21 @@ def write_sample_sheet_v1(writer, flowcell, libraries):
                 "Project",
             ]
             writer.writerow(list(map(str, data)))
+
+
+def write_sample_sheets_v2(flowcell, libraries, output_dir):
+    """Write V2 sample sheets. Write one sample sheet for each bases_mask in the config."""
+    # re-shuffle dict from lib - lane - bases_mask to bases_mask - lib
+    d = collections.defaultdict(dict)
+    for lib in libraries:
+        d[lib.get("demux_reads_override", flowcell["demux_reads"])][lib["name"]] = lib
+
+    for bases_mask, libraries in d.items():
+        os.makedirs(os.path.join(output_dir, "illumina_basesmask/{}".format(bases_mask)), exist_ok=True)
+        with open(os.path.join(output_dir, "illumina_basesmask/{}/SampleSheet.csv".format(bases_mask)), "w") as f:
+            writer = csv.writer(f, delimiter="\t")
+            print(libraries)
+            write_sample_sheet_v2(writer, flowcell, libraries.values())
 
 
 def write_sample_sheet_v2(writer, flowcell, libraries):
@@ -232,6 +248,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
 
     logging.debug("Querying for barcode information")
     libraries = []
+    demux_reads_override = set([])
     for library in flowcell["libraries"]:
         if library.get("barcode_seq"):
             barcode_seq = library.get("barcode_seq")
@@ -255,6 +272,14 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             barcode_seq2 = ""
         if sequencer["dual_index_workflow"] == "B":
             barcode_seq2 = reverse_complement(barcode_seq2)
+
+        if library["demux_reads"]:
+            demux_reads = library["demux_reads"]
+        else:
+            demux_reads = flowcell["demux_reads"] or flowcell["planned_reads"]
+        demux_reads = return_bases_mask(flowcell["planned_reads"], demux_reads, "picard")
+        demux_reads_override.add(demux_reads)
+
         libraries.append(
             {
                 "name": library["name"],
@@ -262,8 +287,18 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
                 "barcode": barcode_seq,
                 "barcode2": barcode_seq2,
                 "lanes": library["lane_numbers"],
+                "demux_reads_override": demux_reads
             }
         )
+
+    # Normalize bases masks, decide if paired-end, find all custom bases_masks
+    planned_reads = flowcell["planned_reads"]
+    demux_reads = flowcell.get("demux_reads") or planned_reads
+    demux_reads = return_bases_mask(planned_reads, demux_reads, "picard")
+    is_paired = demux_reads.count("T") > 1
+    flowcell["is_paired"] = is_paired
+    flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
+    flowcell["demux_reads_override"] = list(demux_reads_override)
 
     logging.debug("Writing out demultiplexing configuration")
     # Get barcode mismatch count or default.
@@ -289,12 +324,13 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
         json.dump(config_json, jsonf)
 
     logging.debug("Writing out sample sheet information")
-    if config.demux_tool == "bcl2fastq":
+    if config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 1:
         with open(os.path.join(output_dir, "SampleSheet.csv"), "wt") as csvf:
-            funcs = {1: write_sample_sheet_v1, 2: write_sample_sheet_v2}
-            funcs[flowcell["rta_version"]](csv.writer(csvf), flowcell, libraries)
-    else:
+            write_sample_sheet_v1(csv.writer(csvf), flowcell, libraries)
+    elif config.demux_tool == "picard":
         write_sample_sheet_picard(flowcell, libraries, output_dir)
+    else:
+        write_sample_sheets_v2(flowcell, libraries, output_dir)
 
     return flowcell  # Everything is fine
 
