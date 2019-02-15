@@ -83,5 +83,7 @@ for path in $srcdir/Undetermined_indices/*/*.fastq.gz; do
     md5sum $(basename $dest) >$(basename $dest).md5
     popd
 done
+
+touch {snakemake.output.marker}
 """
 )

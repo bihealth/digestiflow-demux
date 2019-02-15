@@ -72,5 +72,7 @@ for sheet in {snakemake.input.sheets}; do
 done
 
 popd
+
+touch {snakemake.output.marker}
 """
 )

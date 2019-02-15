@@ -3,7 +3,7 @@
 import functools
 import os
 
-from bases_mask import return_bases_mask
+from .exceptions import InvalidConfiguration
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
@@ -74,11 +74,12 @@ def undetermined_libraries(flowcell):
 
 
 @listify
-def lib_file_names(library, rta_version, is_paired, lane=None, seq=None, name=None):
+def lib_file_names(library, rta_version, n_template, lane=None, seq=None, name=None):
     """Return list with file names for the given library."""
     assert rta_version in (1, 2)
     indices = [library["barcode"] or "NoIndex"]
-    reads = ("R1", "R2") if is_paired else ("R1",)
+    reads = ["R" + str(i + 1) for i in range(n_template)]
+    # TODO add I read if keep_index_reads is True
     lanes = ["L{:03d}".format(lno) for lno in library["lanes"] if lane is None or lno == lane]
     if seq is None:
         seq = ""
@@ -122,12 +123,13 @@ def get_result_files_demux(config):
         return os.path.join(config["output_dir"], path)
 
     flowcell = config["flowcell"]
-    demux_reads = flowcell.get("demux_reads") or flowcell["planned_reads"]
-    demux_reads = return_bases_mask(flowcell["planned_reads"], demux_reads, "picard")
-    is_paired = demux_reads.count("T") > 1
     sample_map = build_sample_map(flowcell)
+    bases_mask = flowcell["demux_reads"]
+    n_template = bases_mask.count("T")
+    expect_undetermined = True if "B" in bases_mask > 0 else False
+    undetermined = undetermined_libraries(flowcell) if expect_undetermined else []
 
-    for lib in flowcell["libraries"] + undetermined_libraries(flowcell):
+    for lib in flowcell["libraries"] + undetermined:
         for lane in sorted(lib["lanes"]):
             if config["lanes"] and lane not in config["lanes"]:
                 continue  # skip disabled lanes
@@ -143,12 +145,14 @@ def get_result_files_demux(config):
             )
 
             if config["rta_version"] == 1 or config["demux_tool"] == "picard":
-                for fname in lib_file_names(lib, config["rta_version"], is_paired, lane):
+                for fname in lib_file_names(lib, config["rta_version"], n_template, lane):
                     yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
             else:
                 seq = sample_map.get(sample_name, "S0")
                 name = "Undetermined" if lib["barcode"] == "Undetermined" else lib["name"]
-                for fname in lib_file_names(lib, config["rta_version"], is_paired, lane, seq, name):
+                for fname in lib_file_names(
+                    lib, config["rta_version"], n_template, lane, seq, name
+                ):
                     yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
 
 
@@ -188,3 +192,29 @@ def get_tiles_arg(config):
     else:
         regexes = ["s_{}".format(lane) for lane in sorted(config["lanes"])]
         return "--tiles {}".format(",".join(regexes))
+
+
+def get_tool_marker(config):
+    """Return marker file for either bcl2fastq, bcl2fastq2 or picard for snakemake"""
+    if len(config["flowcell"]["demux_reads_override"]) > 1:
+        if config["demux_tool"] == "bcl2fastq2":
+            return "bcl2fastq2.done"
+        else:
+            raise InvalidConfiguration(
+                "Only bcl2fastq2 supports more than one bases mask at once, but you have {}".format(
+                    " and ".join(config["flowcell"]["demux_reads_override"])
+                )
+            )
+    elif "M" in config["flowcell"]["demux_reads"]:
+        if config["demux_tool"] == "picard":
+            return "picard.done"
+        else:
+            raise InvalidConfiguration(
+                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' in your bases mask, but you wanted to run bcl2fastq(2)."
+            )
+    elif config["demux_tool"] == "bcl2fastq1":
+        return "bcl2fastq1.done"
+    elif config["demux_tool"] == "picard":
+        return "picard.done"
+    else:
+        return "bcl2fastq2.done"
