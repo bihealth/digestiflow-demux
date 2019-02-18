@@ -332,7 +332,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             "flowcell": {**flowcell, "libraries": libraries},
             "tiles": config.tiles,
             "lanes": config.lanes,
-            "demux_tool": demux_tool
+            "demux_tool": demux_tool,
         }
         json.dump(config_json, jsonf)
 

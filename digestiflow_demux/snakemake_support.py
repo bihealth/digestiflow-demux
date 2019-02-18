@@ -195,12 +195,18 @@ def get_tool_marker(config):
         if config["demux_tool"] == "bcl2fastq2":
             return "bcl2fastq2.done"
         else:
-            raise InvalidConfiguration("Only bcl2fastq2 supports more than one bases mask at once, but you have {}".format(" and ".join(config["demux_reads_override"])))
+            raise InvalidConfiguration(
+                "Only bcl2fastq2 supports more than one bases mask at once, but you have {}".format(
+                    " and ".join(config["demux_reads_override"])
+                )
+            )
     elif "M" in config["flowcell"]["demux_reads"]:
         if config["demux_tool"] == "picard":
             return "picard.done"
         else:
-            raise InvalidConfiguration("Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' in your bases mask, but you wanted to run bcl2fastq")
+            raise InvalidConfiguration(
+                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' in your bases mask, but you wanted to run bcl2fastq"
+            )
     elif config["demux_tool"] == "bcl2fastq1":
         return "bcl2fastq.done"
     elif config["demux_tool"] == "picard":
