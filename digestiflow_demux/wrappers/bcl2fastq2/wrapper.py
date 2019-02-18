@@ -3,6 +3,7 @@
 This file is part of Digestify Demux.
 """
 
+import os
 from snakemake import shell
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
@@ -17,10 +18,7 @@ if barcode_mismatches is None:
 # More than 8 threads will not work for bcl2fastq.
 bcl2fastq_threads = min(8, snakemake.config["cores"])  # noqa
 
-if snakemake.params.read_structure:  # noqa
-    bases_mask = "--use-bases-mask " + snakemake.params.read_structure  # noqa
-else:
-    bases_mask = ""
+bases_mask = "--use-bases-mask " + os.path.basename(os.path.dirname(snakemake.input.sheet))
 
 shell(
     r"""
@@ -36,14 +34,14 @@ trap "rm -rf $TMPDIR" EXIT
 # -------------------------------------------------------------------------------------------------
 # Print Sample Sheet
 
-head -n 10000 {snakemake.params.output_dir}/SampleSheet.csv
+head -n 10000 {snakemake.input.sheet}
 
 # -------------------------------------------------------------------------------------------------
 # Execute bcl2fastq v2
 
 bcl2fastq \
     --barcode-mismatches {barcode_mismatches} \
-    --sample-sheet {snakemake.params.output_dir}/SampleSheet.csv \
+    --sample-sheet {snakemake.input.sheet} \
     --runfolder-dir {snakemake.params.input_dir} \
     --output-dir $TMPDIR/demux_out \
     --interop-dir $TMPDIR/interop_dir \

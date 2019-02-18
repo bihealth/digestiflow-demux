@@ -304,6 +304,13 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
     flowcell["demux_reads_override"] = list(demux_reads_override)
 
+    if config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 2:
+        demux_tool = "bcl2fastq2"
+    elif config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 1:
+        demux_tool = "bcl2fastq1"
+    else:
+        demux_tool = "picard"
+
     logging.debug("Writing out demultiplexing configuration")
     # Get barcode mismatch count or default.
     if flowcell["barcode_mismatches"] is None:
@@ -323,15 +330,15 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             "flowcell": {**flowcell, "libraries": libraries},
             "tiles": config.tiles,
             "lanes": config.lanes,
-            "demux_tool": config.demux_tool,
+            "demux_tool": demux_tool
         }
         json.dump(config_json, jsonf)
 
     logging.debug("Writing out sample sheet information")
-    if config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 1:
+    if demux_tool == "bcl2fastq1":
         with open(os.path.join(output_dir, "SampleSheet.csv"), "wt") as csvf:
             write_sample_sheet_v1(csv.writer(csvf), flowcell, libraries)
-    elif config.demux_tool == "picard":
+    elif demux_tool == "picard":
         write_sample_sheet_picard(flowcell, libraries, output_dir)
     else:
         write_sample_sheets_v2(flowcell, libraries, output_dir)

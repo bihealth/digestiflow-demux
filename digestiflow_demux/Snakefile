@@ -7,6 +7,7 @@ from digestiflow_demux.snakemake_support import (
     get_result_files_fastqc,
     get_result_files_demux,
     get_tiles_arg,
+    get_tool_marker,
     wrapper_path,
 )
 
@@ -19,17 +20,6 @@ from digestiflow_demux.bases_mask import return_bases_mask
 def out_prefix(path):
     return os.path.join(config["output_dir"], path)
 
-
-def demux_reads(flowcell, demux_tool):
-    demux_reads = flowcell.get("demux_reads") or flowcell["planned_reads"]
-    planned_reads = flowcell["planned_reads"]
-
-    if demux_tool == "bcl2fastq" and demux_reads == planned_reads:
-        return ""
-    elif demux_tool == "bcl2fastq":
-        return return_bases_mask(planned_reads, demux_reads)
-    else:
-        return return_bases_mask(planned_reads, demux_reads, "picard")
 
 # -------------------------------------------------------------------------------------------------
 # Define local rules.
@@ -49,7 +39,7 @@ rule marker_file:
     input:
         out_prefix("multiqc/multiqc_report.html"),
         out_prefix("multiqc/multiqc_data.zip"),
-        # **get_result_files_fastqc(config),
+        out_prefix(get_tool_marker(config)),
     output: out_prefix("DIGESTIFLOW_DEMUX_DONE.txt"),
     shell:
         r"""
@@ -59,24 +49,38 @@ rule marker_file:
 # -------------------------------------------------------------------------------------------------
 # Perform demultiplexing.
 
-if config["demux_tool"] == "bcl2fastq":
-    ruleorder: demux > demux_picard
-elif config["demux_tool"] == "picard" and config["rta_version"] == 2:
-    ruleorder: demux_picard > demux
-else:
-    raise("Picard can only be used with rta version 2 at the moment")
-
-rule demux:
+rule demux_bcl2fastq1:
     input: out_prefix("SampleSheet.csv")
-    output: get_result_files_demux(config)
+    output: get_result_files_demux(config),
+            marker = out_prefix("bcl2fastq1.done")
     params:
         flowcell_token=config["flowcell"]["vendor_id"],
         input_dir=config["input_dir"],
         output_dir=config["output_dir"],
-        read_structure=demux_reads(config["flowcell"], config["demux_tool"]),
         tiles_arg=get_tiles_arg(config),
     threads: config["cores"]
     wrapper: wrapper_path(bcl2fastq_wrapper(config))
+
+# -------------------------------------------------------------------------------------------------
+bases_masks = config["flowcell"]["demux_reads_override"]
+
+rule demux_bcl2fastq2_aggregate:
+    input: expand(out_prefix("illumina_basesmask/{bases_mask}/bcl2fastq2.done"), bases_mask = bases_masks)
+    output: get_result_files_demux(config),
+            marker = out_prefix("bcl2fastq2.done")
+
+rule demux_bcl2fastq2_par:
+    input: sheet = out_prefix("illumina_basesmask/{bases_mask}/SampleSheet.csv")
+    output: marker = out_prefix("illumina_basesmask/{bases_mask}/bcl2fastq2.done")
+    params:
+        flowcell_token=config["flowcell"]["vendor_id"],
+        input_dir=config["input_dir"],
+        output_dir=config["output_dir"],
+        tiles_arg=get_tiles_arg(config),
+    threads: config["cores"]
+    wrapper: wrapper_path(bcl2fastq_wrapper(config))
+
+# -------------------------------------------------------------------------------------------------
 
 # Picard: either take configured lane or all lanes
 lanes_to_process = config.get("lanes")
@@ -86,12 +90,13 @@ if not lanes_to_process:
 rule demux_picard:
     input: metrics=expand(out_prefix("picard_barcodes/{lane}/metrics.txt"), lane=lanes_to_process),
            sheets=expand(out_prefix("picard_barcodes/{lane}/samplesheet.txt"), lane=lanes_to_process)
-    output: get_result_files_demux(config)
+    output: get_result_files_demux(config),
+            marker = out_prefix("picard.done")
     params:
         machine_name=config["flowcell"]["sequencing_machine"],
         flowcell_token=config["flowcell"]["vendor_id"],
         run_number=config["flowcell"]["run_number"],
-        read_structure=demux_reads(config["flowcell"], config["demux_tool"]),
+        read_structure=config["flowcell"]["demux_reads"],
         input_dir=config["input_dir"],
         output_dir=config["output_dir"],
         tiles_arg=get_tiles_arg(config),
@@ -104,7 +109,7 @@ rule prepare_picard:
     output: out_prefix("picard_barcodes/{lane}/metrics.txt")
     params:
         flowcell_token=config["flowcell"]["vendor_id"],
-        read_structure=demux_reads(config["flowcell"], config["demux_tool"]),
+        read_structure=config["flowcell"]["demux_reads"],
         input_dir=config["input_dir"],
     threads: config["cores"]
     wrapper: wrapper_path("picard/extract_barcodes")

@@ -3,7 +3,7 @@
 import functools
 import os
 
-from bases_mask import return_bases_mask
+from .exceptions import InvalidConfiguration
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
@@ -122,9 +122,7 @@ def get_result_files_demux(config):
         return os.path.join(config["output_dir"], path)
 
     flowcell = config["flowcell"]
-    demux_reads = flowcell.get("demux_reads") or flowcell["planned_reads"]
-    demux_reads = return_bases_mask(flowcell["planned_reads"], demux_reads, "picard")
-    is_paired = demux_reads.count("T") > 1
+    is_paired = config["flowcell"]["is_paired"]
     sample_map = build_sample_map(flowcell)
 
     for lib in flowcell["libraries"] + undetermined_libraries(flowcell):
@@ -188,3 +186,24 @@ def get_tiles_arg(config):
     else:
         regexes = ["s_{}".format(lane) for lane in sorted(config["lanes"])]
         return "--tiles {}".format(",".join(regexes))
+
+
+def get_tool_marker(config):
+    """Return marker file for either bcl2fastq, bcl2fastq2 or picard for snakemake"""
+    print(config)
+    if len(config["flowcell"]["demux_reads_override"]) > 1:
+        if config["demux_tool"] == "bcl2fastq2":
+            return "bcl2fastq2.done"
+        else:
+            raise InvalidConfiguration("Only bcl2fastq2 supports more than one bases mask at once, but you have {}".format(" and ".join(config["demux_reads_override"])))
+    elif "M" in config["flowcell"]["demux_reads"]:
+        if config["demux_tool"] == "picard":
+            return "picard.done"
+        else:
+            raise InvalidConfiguration("Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' in your bases mask, but you wanted to run bcl2fastq")
+    elif config["demux_tool"] == "bcl2fastq1":
+        return "bcl2fastq.done"
+    elif config["demux_tool"] == "picard":
+        return "picard.done"
+    else:
+        return "bcl2fastq2.done"
