@@ -120,11 +120,13 @@ def write_sample_sheet_v2(writer, flowcell, libraries):
     rows = []
     for lib in libraries:
         for lane in sorted(lib["lanes"]):
-            row = [lane, lib["name"], lib["barcode"]]
-            if dual_indexing:
-                row.append(lib["barcode2"])
-            row.append("Project")
-            rows.append(row)
+            barcodes = lib["barcode"].split(",")
+            for barcode in barcodes:
+                row = [lane, lib["name"], barcode]
+                if dual_indexing:
+                    row.append(lib["barcode2"])
+                row.append("Project")
+                rows.append(row)
     for row in sorted(rows):
         writer.writerow(list(map(str, row)))
 
