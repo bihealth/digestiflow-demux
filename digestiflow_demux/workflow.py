@@ -96,8 +96,13 @@ def write_sample_sheets_v2(flowcell, libraries, output_dir):
         d[lib.get("demux_reads_override", flowcell["demux_reads"])][lib["name"]] = lib
 
     for bases_mask, libraries in d.items():
-        os.makedirs(os.path.join(output_dir, "illumina_basesmask/{}".format(bases_mask)), exist_ok=True)
-        with open(os.path.join(output_dir, "illumina_basesmask/{}/SampleSheet.csv".format(bases_mask)), "w") as f:
+        os.makedirs(
+            os.path.join(output_dir, "illumina_basesmask/{}".format(bases_mask)), exist_ok=True
+        )
+        with open(
+            os.path.join(output_dir, "illumina_basesmask/{}/SampleSheet.csv".format(bases_mask)),
+            "w",
+        ) as f:
             writer = csv.writer(f, delimiter="\t")
             write_sample_sheet_v2(writer, flowcell, libraries.values())
 
@@ -286,7 +291,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
                 "barcode": barcode_seq,
                 "barcode2": barcode_seq2,
                 "lanes": library["lane_numbers"],
-                "demux_reads_override": demux_reads
+                "demux_reads_override": demux_reads,
             }
         )
 
