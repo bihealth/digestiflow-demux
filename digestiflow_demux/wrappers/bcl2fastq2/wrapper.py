@@ -18,7 +18,7 @@ if barcode_mismatches is None:
 # More than 8 threads will not work for bcl2fastq.
 bcl2fastq_threads = min(8, snakemake.config["cores"])  # noqa
 
-bases_mask = "--use-bases-mask " + os.path.basename(os.path.dirname(snakemake.input.sheet))
+bases_mask = "--use-bases-mask " + os.path.basename(os.path.dirname(snakemake.input.sheet))  # noqa
 
 shell(
     r"""
