@@ -99,7 +99,6 @@ def write_sample_sheets_v2(flowcell, libraries, output_dir):
         os.makedirs(os.path.join(output_dir, "illumina_basesmask/{}".format(bases_mask)), exist_ok=True)
         with open(os.path.join(output_dir, "illumina_basesmask/{}/SampleSheet.csv".format(bases_mask)), "w") as f:
             writer = csv.writer(f, delimiter="\t")
-            print(libraries)
             write_sample_sheet_v2(writer, flowcell, libraries.values())
 
 
