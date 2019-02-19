@@ -190,7 +190,6 @@ def get_tiles_arg(config):
 
 def get_tool_marker(config):
     """Return marker file for either bcl2fastq, bcl2fastq2 or picard for snakemake"""
-    print(config)
     if len(config["flowcell"]["demux_reads_override"]) > 1:
         if config["demux_tool"] == "bcl2fastq2":
             return "bcl2fastq2.done"
@@ -205,10 +204,10 @@ def get_tool_marker(config):
             return "picard.done"
         else:
             raise InvalidConfiguration(
-                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' in your bases mask, but you wanted to run bcl2fastq"
+                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' in your bases mask, but you wanted to run bcl2fastq(2)."
             )
     elif config["demux_tool"] == "bcl2fastq1":
-        return "bcl2fastq.done"
+        return "bcl2fastq1.done"
     elif config["demux_tool"] == "picard":
         return "picard.done"
     else:
