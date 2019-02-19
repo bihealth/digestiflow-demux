@@ -6,6 +6,8 @@ This file is part of Digestify Demux.
 import os
 from snakemake import shell
 
+from digestiflow_demux.bases_mask import return_bases_mask
+
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
 shell.executable("/bin/bash")
@@ -18,7 +20,10 @@ if barcode_mismatches is None:
 # More than 8 threads will not work for bcl2fastq.
 bcl2fastq_threads = min(8, snakemake.config["cores"])  # noqa
 
-bases_mask = "--use-bases-mask " + os.path.basename(os.path.dirname(snakemake.input.sheet))  # noqa
+# Get bases mask for the current sample sheet
+bases_mask = os.path.basename(os.path.dirname(snakemake.input.sheet))  # noqa
+bases_mask = return_bases_mask(bases_mask, bases_mask)
+bases_mask = "--use-bases-mask " + bases_mask
 
 shell(
     r"""
