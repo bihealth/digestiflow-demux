@@ -254,7 +254,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
 
     logging.debug("Querying for barcode information")
     libraries = []
-    demux_reads_override = set([])
+    demux_reads_override = set()
     for library in flowcell["libraries"]:
         if library.get("barcode_seq"):
             barcode_seq = library.get("barcode_seq")

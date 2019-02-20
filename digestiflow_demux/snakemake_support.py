@@ -115,7 +115,7 @@ def build_sample_map(flowcell):
 
 
 @listify
-def get_result_files_demux(config):
+def get_result_files_demux(config, bases_mask="all"):
     """Return list with demultiplexing results."""
 
     def out_prefix(path):
@@ -147,7 +147,10 @@ def get_result_files_demux(config):
                 seq = sample_map.get(sample_name, "S0")
                 name = "Undetermined" if lib["barcode"] == "Undetermined" else lib["name"]
                 for fname in lib_file_names(lib, config["rta_version"], is_paired, lane, seq, name):
-                    yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
+                    if bases_mask == "all":
+                        yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
+                    elif lib.get("demux_reads_override") == bases_mask:
+                        yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
 
 
 def get_result_files_fastqc(config):
@@ -196,7 +199,7 @@ def get_tool_marker(config):
         else:
             raise InvalidConfiguration(
                 "Only bcl2fastq2 supports more than one bases mask at once, but you have {}".format(
-                    " and ".join(config["demux_reads_override"])
+                    " and ".join(config["flowcell"]["demux_reads_override"])
                 )
             )
     elif "M" in config["flowcell"]["demux_reads"]:

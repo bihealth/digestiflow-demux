@@ -3,10 +3,12 @@
 This file is part of Digestify Demux.
 """
 
+import glob
 import os
 from snakemake import shell
 
 from digestiflow_demux.bases_mask import return_bases_mask
+from digestiflow_demux.snakemake_support import build_sample_map
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
@@ -21,9 +23,13 @@ if barcode_mismatches is None:
 bcl2fastq_threads = min(8, snakemake.config["cores"])  # noqa
 
 # Get bases mask for the current sample sheet
+planned_reads = snakemake.config["flowcell"]["planned_reads"]  # noqa
 bases_mask = os.path.basename(os.path.dirname(snakemake.input.sheet))  # noqa
-bases_mask = return_bases_mask(bases_mask, bases_mask)
-bases_mask = "--use-bases-mask " + bases_mask
+bases_mask_illumina = return_bases_mask(planned_reads, bases_mask)
+
+# Get sample map to get sample numbering correct
+sample_map = build_sample_map(snakemake.config["flowcell"])  # noqa
+sample_map["Undetermined"] = "S0"
 
 shell(
     r"""
@@ -51,7 +57,8 @@ bcl2fastq \
     --output-dir $TMPDIR/demux_out \
     --interop-dir $TMPDIR/interop_dir \
     --processing-threads {bcl2fastq_threads} \
-    {bases_mask} {snakemake.params.tiles_arg}
+    --use-bases-mask {bases_mask_illumina} \
+    {snakemake.params.tiles_arg}
 
 tree $TMPDIR/demux_out
 
@@ -67,6 +74,7 @@ for path in $srcdir/*; do
     lane=$(basename $path | rev | cut -d _ -f 3 | rev)
     dest={snakemake.params.output_dir}/$sample/$flowcell/$lane/$(basename $path)
 
+    mkdir -p $(dirname $dest)
     cp -dR $path $dest
     pushd $(dirname $dest)
     md5sum $(basename $dest) >$(basename $dest).md5
@@ -80,10 +88,27 @@ for path in $srcdir/Undetermined_*; do
     lane=$(basename $path | rev | cut -d _ -f 3 | rev)
     dest={snakemake.params.output_dir}/Undetermined/$flowcell/$lane/$(basename $path)
 
+    mkdir -p $(dirname $dest)
     cp -dR $path $dest
     pushd $(dirname $dest)
     md5sum $(basename $dest) >$(basename $dest).md5
     popd
 done
+
+touch {snakemake.output.marker}
 """
 )
+
+# bcl2fastq2 starts to count samples from 0 for each run. This breaks snakemake's assumption that
+# all samples from all sample sheets are numbered incrementally. Here, we look up the correct
+# sample number and replace it in the path. Easier to do in python than in bash above.
+fls = glob.glob(os.path.join(snakemake.params.output_dir, "*/*/*/*.fastq.gz"))  # noqa
+for path in fls:
+    f = os.path.basename(path)
+    name = f[:-24]  # sample name before _Sx_
+    oldS = f[-23:-21]  # Sx
+    newS = sample_map[name]
+    if newS != oldS:
+        newpath = path.replace("_".join([name, oldS]), "_".join([name, newS]))
+        os.rename(path, newpath)
+        os.rename(path + ".md5", newpath + ".md5")
