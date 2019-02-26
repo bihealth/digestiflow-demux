@@ -118,7 +118,9 @@ rule demux_bcl2fastq2_par:
 # either take configured lane or all lanes
 lanes_to_process = config.get("lanes")
 if not lanes_to_process:
-    lanes_to_process = [x+1 for x in range(config["flowcell"]["num_lanes"])]
+    lanes_to_process = set()
+    for lib in config["flowcell"]["libraries"]:
+        lanes_to_process |= set(lib["lanes"])
 
 rule demux_picard:
     input: metrics=expand(out_prefix("picard_barcodes/{lane}/metrics.txt"), lane=lanes_to_process),
