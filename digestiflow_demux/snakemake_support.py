@@ -115,7 +115,7 @@ def build_sample_map(flowcell):
 
 
 @listify
-def get_result_files_demux(config, bases_mask="all"):
+def get_result_files_demux(config):
     """Return list with demultiplexing results."""
 
     def out_prefix(path):
@@ -147,10 +147,7 @@ def get_result_files_demux(config, bases_mask="all"):
                 seq = sample_map.get(sample_name, "S0")
                 name = "Undetermined" if lib["barcode"] == "Undetermined" else lib["name"]
                 for fname in lib_file_names(lib, config["rta_version"], is_paired, lane, seq, name):
-                    if bases_mask == "all":
-                        yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
-                    elif lib.get("demux_reads_override") == bases_mask:
-                        yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
+                    yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
 
 
 def get_result_files_fastqc(config):
