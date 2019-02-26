@@ -72,13 +72,9 @@ srcdir=$TMPDIR/demux_out/Project
 for path in $srcdir/*; do
     sample=$(basename $path | rev | cut -d _ -f 5- | rev)
     lane=$(basename $path | rev | cut -d _ -f 3 | rev)
-    dest={snakemake.params.output_dir}/$sample/$flowcell/$lane/$(basename $path)
-
+    dest={snakemake.params.output_dir}/$sample/$flowcell/$lane/{bases_mask}__$(basename $path)
     mkdir -p $(dirname $dest)
     cp -dR $path $dest
-    pushd $(dirname $dest)
-    md5sum $(basename $dest) >$(basename $dest).md5
-    popd
 done
 
 # Move undetermined FASTQ files.
@@ -86,13 +82,9 @@ srcdir=$TMPDIR/demux_out
 
 for path in $srcdir/Undetermined_*; do
     lane=$(basename $path | rev | cut -d _ -f 3 | rev)
-    dest={snakemake.params.output_dir}/Undetermined/$flowcell/$lane/$(basename $path)
-
+    dest={snakemake.params.output_dir}/Undetermined/$flowcell/$lane/{bases_mask}__$(basename $path)
     mkdir -p $(dirname $dest)
     cp -dR $path $dest
-    pushd $(dirname $dest)
-    md5sum $(basename $dest) >$(basename $dest).md5
-    popd
 done
 
 touch {snakemake.output.marker}
@@ -102,13 +94,13 @@ touch {snakemake.output.marker}
 # bcl2fastq2 starts to count samples from 0 for each run. This breaks snakemake's assumption that
 # all samples from all sample sheets are numbered incrementally. Here, we look up the correct
 # sample number and replace it in the path. Easier to do in python than in bash above.
-fls = glob.glob(os.path.join(snakemake.params.output_dir, "*/*/*/*.fastq.gz"))  # noqa
+fls = glob.glob(
+    os.path.join(snakemake.params.output_dir, "*/*/*/" + bases_mask + "__*.fastq.gz")  # noqa
+)
 for path in fls:
     f = os.path.basename(path)
-    name = f[:-24]  # sample name before _Sx_
+    name = f[:-24].split("__")[1]  # sample name before _Sx_, after $bases_mask__
     oldS = f[-23:-21]  # Sx
     newS = sample_map[name]
-    if newS != oldS:
-        newpath = path.replace("_".join([name, oldS]), "_".join([name, newS]))
-        os.rename(path, newpath)
-        os.rename(path + ".md5", newpath + ".md5")
+    newpath = path.replace("_".join([name, oldS]), "_".join([name, newS]))
+    os.rename(path, newpath)
