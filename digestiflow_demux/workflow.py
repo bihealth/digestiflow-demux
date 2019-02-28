@@ -92,8 +92,8 @@ def write_sample_sheets_v2(flowcell, libraries, output_dir):
     """Write V2 sample sheets. Write one sample sheet for each bases_mask in the config."""
     # re-shuffle dict from lib - lane - bases_mask to bases_mask - lib
     d = collections.defaultdict(dict)
-    for lib in libraries:
-        d[lib.get("demux_reads_override", flowcell["demux_reads"])][lib["name"]] = lib
+    for key, lib in enumerate(libraries):
+        d[lib.get("demux_reads_override", flowcell["demux_reads"])][key] = lib
 
     for bases_mask, libraries in d.items():
         os.makedirs(

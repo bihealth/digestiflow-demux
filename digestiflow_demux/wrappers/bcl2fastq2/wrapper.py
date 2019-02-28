@@ -99,8 +99,10 @@ fls = glob.glob(
 )
 for path in fls:
     f = os.path.basename(path)
-    name = f[:-24].split("__")[1]  # sample name before _Sx_, after $bases_mask__
-    oldS = f[-23:-21]  # Sx
+    name = f.split("__")[1]  # remove $bases_mask__
+    name_elements = name.split("_")[:-3]
+    oldS = name_elements[-1]
+    name = "_".join(name_elements[:-1])
     newS = sample_map[name]
     newpath = path.replace("_".join([name, oldS]), "_".join([name, newS]))
     os.rename(path, newpath)
