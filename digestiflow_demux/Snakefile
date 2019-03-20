@@ -65,7 +65,7 @@ rule demux_bcl2fastq1:
 
 # Get list of all bases masks configured, as bcl2fastq2 will be run once for each
 bases_masks = config["flowcell"]["demux_reads_override"]
-keep_undetermined = sorted(bases_masks)[-1]  # keep bases mask with longest first read
+keep_undetermined = sorted(bases_masks, reverse=True)[0]  # keep bases mask with longest first read
 
 rule demux_bcl2fastq2_aggregate:
     input: expand(out_prefix("illumina_basesmask/{bases_mask}/bcl2fastq2.done"), bases_mask = bases_masks)
