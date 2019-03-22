@@ -81,15 +81,15 @@ rule demux_bcl2fastq2_aggregate:
         for final_path in output.fastq:
             d = os.path.dirname(final_path)
             f = os.path.basename(final_path)
-            if not "Undetermined_" in final_path:
-               os.rename(glob.glob(os.path.join(d, "*__" + f))[0], final_path)
+            if not "/Undetermined_" in final_path:
+                os.rename(glob.glob(os.path.join(d, "*__" + f))[0], final_path)
             else:
-               undetermined = glob.glob(os.path.join(d, keep_undetermined + "__" + f))
-               if not undetermined:
-                   undetermined = glob.glob(os.path.join(d, "*__" + f))[0]
-               else:
-                   undetermined = undetermined[0]
-               os.rename(undetermined, final_path)
+                undetermined = glob.glob(os.path.join(d, keep_undetermined + "__" + f))
+                if not undetermined:
+                    undetermined = glob.glob(os.path.join(d, "*__" + f))[0]
+                else:
+                    undetermined = undetermined[0]
+                os.rename(undetermined, final_path)
         shell(
             r"""
             for dest in {output.fastq}; do
