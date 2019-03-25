@@ -74,11 +74,12 @@ def undetermined_libraries(flowcell):
 
 
 @listify
-def lib_file_names(library, rta_version, is_paired, lane=None, seq=None, name=None):
+def lib_file_names(library, rta_version, n_template, lane=None, seq=None, name=None):
     """Return list with file names for the given library."""
     assert rta_version in (1, 2)
     indices = [library["barcode"] or "NoIndex"]
-    reads = ("R1", "R2") if is_paired else ("R1",)
+    reads = ["R" + str(i + 1) for i in range(n_template)]
+    # TODO add I read if keep_index_reads is True
     lanes = ["L{:03d}".format(lno) for lno in library["lanes"] if lane is None or lno == lane]
     if seq is None:
         seq = ""
@@ -122,10 +123,13 @@ def get_result_files_demux(config):
         return os.path.join(config["output_dir"], path)
 
     flowcell = config["flowcell"]
-    is_paired = config["flowcell"]["is_paired"]
     sample_map = build_sample_map(flowcell)
+    bases_mask = flowcell["demux_reads"]
+    n_template = bases_mask.count("T")
+    expect_undetermined = True if "B" in bases_mask > 0 else False
+    undetermined = undetermined_libraries(flowcell) if expect_undetermined else []
 
-    for lib in flowcell["libraries"] + undetermined_libraries(flowcell):
+    for lib in flowcell["libraries"] + undetermined:
         for lane in sorted(lib["lanes"]):
             if config["lanes"] and lane not in config["lanes"]:
                 continue  # skip disabled lanes
@@ -141,12 +145,14 @@ def get_result_files_demux(config):
             )
 
             if config["rta_version"] == 1 or config["demux_tool"] == "picard":
-                for fname in lib_file_names(lib, config["rta_version"], is_paired, lane):
+                for fname in lib_file_names(lib, config["rta_version"], n_template, lane):
                     yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
             else:
                 seq = sample_map.get(sample_name, "S0")
                 name = "Undetermined" if lib["barcode"] == "Undetermined" else lib["name"]
-                for fname in lib_file_names(lib, config["rta_version"], is_paired, lane, seq, name):
+                for fname in lib_file_names(
+                    lib, config["rta_version"], n_template, lane, seq, name
+                ):
                     yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
 
 

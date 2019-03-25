@@ -301,8 +301,6 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     planned_reads = flowcell["planned_reads"]
     demux_reads = flowcell.get("demux_reads") or planned_reads
     demux_reads = return_bases_mask(planned_reads, demux_reads, "picard")
-    is_paired = demux_reads.count("T") > 1
-    flowcell["is_paired"] = is_paired
     flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
     flowcell["demux_reads_override"] = list(demux_reads_override)
 

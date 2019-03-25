@@ -59,6 +59,9 @@ bcl2fastq \
     --processing-threads {bcl2fastq_threads} \
     --use-bases-mask {bases_mask_illumina} \
     {snakemake.params.tiles_arg}
+    #--create-fastq-for-index-reads \
+    #--minimum-trimmed-read-length=8 \
+    #--mask-short-adapter-reads=8 \
 
 tree $TMPDIR/demux_out
 
@@ -81,11 +84,19 @@ done
 srcdir=$TMPDIR/demux_out
 
 for path in $srcdir/Undetermined_*; do
-    lane=$(basename $path | rev | cut -d _ -f 3 | rev)
-    dest={snakemake.params.output_dir}/Undetermined/$flowcell/$lane/{bases_mask}__$(basename $path)
-    mkdir -p $(dirname $dest)
-    cp -dR $path $dest
+    if [[ -f $path ]]; then
+        lane=$(basename $path | rev | cut -d _ -f 3 | rev)
+        dest={snakemake.params.output_dir}/Undetermined/$flowcell/$lane/{bases_mask}__$(basename $path)
+        mkdir -p $(dirname $dest)
+        cp -dR $path $dest
+    fi
 done
+
+# Write out the html report files as an archive
+srcdir=$TMPDIR/demux_out
+pushd $srcdir
+tar -czvf {snakemake.params.output_dir}/html_report_{bases_mask}.tar.gz Reports
+popd
 
 touch {snakemake.output.marker}
 """
