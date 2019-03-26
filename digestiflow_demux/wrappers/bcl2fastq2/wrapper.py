@@ -72,9 +72,9 @@ srcdir=$TMPDIR/demux_out/Project
 for path in $srcdir/*; do
     sample=$(basename $path | rev | cut -d _ -f 5- | rev)
     lane=$(basename $path | rev | cut -d _ -f 3 | rev)
-    mkdir -p $(dirname $dest)
     read=$(basename $path | rev | cut -d _ -f 2 | rev)
     dest={snakemake.params.output_dir}/$sample/$flowcell/$lane/{bases_mask}__$(basename $path)
+    mkdir -p $(dirname $dest)
 
     cp -dR $path $dest
     pushd $(dirname $dest)

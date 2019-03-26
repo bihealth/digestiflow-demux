@@ -126,7 +126,7 @@ def get_result_files_demux(config):
     sample_map = build_sample_map(flowcell)
     bases_mask = flowcell["demux_reads"]
     n_template = bases_mask.count("T")
-    expect_undetermined = True if "B" in bases_mask > 0 else False
+    expect_undetermined = True if "B" in bases_mask else False
     undetermined = undetermined_libraries(flowcell) if expect_undetermined else []
 
     for lib in flowcell["libraries"] + undetermined:
