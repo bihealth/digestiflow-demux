@@ -72,9 +72,22 @@ srcdir=$TMPDIR/demux_out/Project
 for path in $srcdir/*; do
     sample=$(basename $path | rev | cut -d _ -f 5- | rev)
     lane=$(basename $path | rev | cut -d _ -f 3 | rev)
-    dest={snakemake.params.output_dir}/$sample/$flowcell/$lane/{bases_mask}__$(basename $path)
     mkdir -p $(dirname $dest)
+    read=$(basename $path | rev | cut -d _ -f 2 | rev)
+    dest={snakemake.params.output_dir}/$sample/$flowcell/$lane/{bases_mask}__$(basename $path)
+
     cp -dR $path $dest
+    pushd $(dirname $dest)
+    md5sum $(basename $dest) >$(basename $dest).md5
+    popd
+
+    # Make sure that the undetermined files are there.
+    if [[ ! -e $TMPDIR/demux_out/Undetermined_S0_${{lane}}_${{read}}_001.fastq.gz ]]; then
+        mkdir -p $TMPDIR/demux_out
+        echo -e "@placeholder\nN\n+\n!" \
+        | gzip -c \
+        > $TMPDIR/demux_out/Undetermined_S0_${{lane}}_${{read}}_001.fastq.gz
+    fi
 done
 
 # Move undetermined FASTQ files.
