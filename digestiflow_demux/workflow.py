@@ -311,6 +311,13 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     else:
         demux_tool = "picard"
 
+    bcl2fastq2_params = {
+        "with_failed_reads": config.with_failed_reads,
+        "create_fastq_for_index_reads": flowcell["create_fastq_for_index_reads"],
+        "minimum_trimmed_read_length": flowcell["minimum_trimmed_read_length"],
+        "mask_short_adapter_reads": flowcell["mask_short_adapter_reads"],
+    }
+
     logging.debug("Writing out demultiplexing configuration")
     # Get barcode mismatch count or default.
     if flowcell["barcode_mismatches"] is None:
@@ -331,6 +338,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             "tiles": config.tiles,
             "lanes": config.lanes,
             "demux_tool": demux_tool,
+            "bcl2fastq2_params": bcl2fastq2_params,
         }
         json.dump(config_json, jsonf)
 
