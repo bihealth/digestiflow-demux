@@ -7,6 +7,10 @@ HEAD (unreleased)
 -----------------
 
 - Enable use of bcl2fastq packages from conda.
+- Parse and check custom bases masks.
+- Allow passing bcl2fastq2 parameters from digestiflow-server, e.g. for 10x demultiplexing.
+- Add index reads to output files.
+- Remove old sample sheets before running to ensure consistency.
 
 ------
 v0.2.0

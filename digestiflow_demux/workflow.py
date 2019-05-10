@@ -213,6 +213,17 @@ def load_run_info(path_run_info_xml):
     }
 
 
+def remove_old_samplesheets(output_dir):
+    """Remove old sample sheets so that snakemake does not get confused."""
+    fls = ["SampleSheet.csv", "picard_barcodes", "illumina_basesmask"]
+    fls = [os.path.join(output_dir, f) for f in fls]
+    for f in fls:
+        if os.path.isdir(f):
+            shutil.rmtree(f)
+        elif os.path.exists(f):
+            os.remove(f)
+
+
 def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     """Query the Digestiflow API for the necessary information for building the sample sheet."""
     logging.info("Perform API queries and create sample sheet")
@@ -343,6 +354,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
         json.dump(config_json, jsonf)
 
     logging.debug("Writing out sample sheet information")
+    remove_old_samplesheets(output_dir)
     if demux_tool == "bcl2fastq1":
         with open(os.path.join(output_dir, "SampleSheet.csv"), "wt") as csvf:
             write_sample_sheet_v1(csv.writer(csvf), flowcell, libraries)
