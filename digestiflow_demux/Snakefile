@@ -65,7 +65,7 @@ rule demux_bcl2fastq1:
 
 # Get list of all bases masks configured, as bcl2fastq2 will be run once for each
 bases_masks = config["flowcell"]["demux_reads_override"]
-keep_undetermined = sorted(bases_masks, reverse=True)[0]  # keep bases mask with longest first read
+keep_undetermined = config["flowcell"]["demux_reads"]
 
 rule demux_bcl2fastq2_aggregate:
     input: expand(out_prefix("illumina_basesmask/{bases_mask}/bcl2fastq2.done"), bases_mask = bases_masks)
@@ -81,15 +81,22 @@ rule demux_bcl2fastq2_aggregate:
         for final_path in output.fastq:
             d = os.path.dirname(final_path)
             f = os.path.basename(final_path)
-            if not "/Undetermined_" in final_path:
+            if not f.startswith("Undetermined_"):
                 os.rename(glob.glob(os.path.join(d, "*__" + f))[0], final_path)
             else:
                 undetermined = glob.glob(os.path.join(d, keep_undetermined + "__" + f))
                 if not undetermined:
-                    undetermined = glob.glob(os.path.join(d, "*__" + f))[0]
-                else:
-                    undetermined = undetermined[0]
-                os.rename(undetermined, final_path)
+                    undetermined = glob.glob(os.path.join(d, "*__" + f))
+                if undetermined:
+                    os.rename(undetermined[0], final_path)
+                else:  # write a fake fastq if you can't find any, but it is expected
+                    import gzip
+                    os.makedirs(d, exist_ok=True)
+                    with gzip.open(final_path, "wt") as f:
+                        f.write("@placeholder\n")
+                        f.write("N\n")
+                        f.write("+\n")
+                        f.write("!\n")
         shell(
             r"""
             for dest in {output.fastq}; do

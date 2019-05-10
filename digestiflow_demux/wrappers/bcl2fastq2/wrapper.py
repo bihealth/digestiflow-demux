@@ -31,6 +31,15 @@ bases_mask_illumina = return_bases_mask(planned_reads, bases_mask)
 sample_map = build_sample_map(snakemake.config["flowcell"])  # noqa
 sample_map["Undetermined"] = "S0"
 
+# Get additional bcl2fastq2 parameters
+add_params = ""
+for arg, value in snakemake.config["bcl2fastq2_params"].items():  # noqa
+    if value:
+        if isinstance(value, bool):
+            add_params += " --" + arg.replace("_", "-")
+        elif isinstance(value, int):
+            add_params += " --" + arg.replace("_", "-") + " " + str(value)
+
 shell(
     r"""
 set -euo pipefail
@@ -58,7 +67,7 @@ bcl2fastq \
     --interop-dir $TMPDIR/interop_dir \
     --processing-threads {bcl2fastq_threads} \
     --use-bases-mask {bases_mask_illumina} \
-    {snakemake.params.tiles_arg}
+    {add_params} {snakemake.params.tiles_arg}
 
 tree $TMPDIR/demux_out
 
@@ -72,22 +81,9 @@ srcdir=$TMPDIR/demux_out/Project
 for path in $srcdir/*; do
     sample=$(basename $path | rev | cut -d _ -f 5- | rev)
     lane=$(basename $path | rev | cut -d _ -f 3 | rev)
-    read=$(basename $path | rev | cut -d _ -f 2 | rev)
     dest={snakemake.params.output_dir}/$sample/$flowcell/$lane/{bases_mask}__$(basename $path)
     mkdir -p $(dirname $dest)
-
     cp -dR $path $dest
-    pushd $(dirname $dest)
-    md5sum $(basename $dest) >$(basename $dest).md5
-    popd
-
-    # Make sure that the undetermined files are there.
-    if [[ ! -e $TMPDIR/demux_out/Undetermined_S0_${{lane}}_${{read}}_001.fastq.gz ]]; then
-        mkdir -p $TMPDIR/demux_out
-        echo -e "@placeholder\nN\n+\n!" \
-        | gzip -c \
-        > $TMPDIR/demux_out/Undetermined_S0_${{lane}}_${{read}}_001.fastq.gz
-    fi
 done
 
 # Move undetermined FASTQ files.

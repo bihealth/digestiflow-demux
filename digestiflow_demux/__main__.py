@@ -50,6 +50,9 @@ class DemuxConfig:
     #: Select lanes
     lanes = attr.ib()
 
+    #: bcl2fastq2 parameters
+    with_failed_reads = attr.ib()
+
     #: Degree of parallelism to use
     cores = attr.ib()
     #: Increase verbosity
@@ -72,6 +75,7 @@ class DemuxConfig:
             force_demultiplexing=config["web"]["force_demultiplexing"],
             only_post_message=config["web"]["only_post_message"],
             demux_tool=config["demux"]["demux_tool"],
+            with_failed_reads=config["with_failed_reads"],
             project_uuid=config["demux"]["project_uuid"],
             keep_work_dir=config["demux"]["keep_work_dir"],
             work_dir=config["demux"]["work_dir"],
@@ -157,6 +161,9 @@ def merge_config_args(config, args):
     config.setdefault("quiet", False)
     if args.quiet is True:
         config["quiet"] = True
+    config.setdefault("with_failed_reads", False)
+    if args.with_failed_reads is True:
+        config["with_failed_reads"] = True
 
     config["log_api_token"] = args.log_api_token
     config.setdefault("demux", {})["tiles"] = args.tiles
@@ -298,6 +305,7 @@ def main(argv=None):
             "Conflicts with --lane"
         ),
     )
+    parser.add_argument("--with-failed-reads", action="store_true", help=argparse.SUPPRESS)
 
     args = parser.parse_args(argv)
 
