@@ -2,9 +2,9 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
+------
+v0.3.0
+------
 
 - Enable use of bcl2fastq packages from conda.
 - Parse and check custom bases masks.
