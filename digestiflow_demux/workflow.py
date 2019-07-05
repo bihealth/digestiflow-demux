@@ -267,6 +267,8 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     libraries = []
     demux_reads_override = set()
     for library in flowcell["libraries"]:
+        if not library["lane_numbers"]:
+            continue  # do not consider library any further
         if library.get("barcode_seq"):
             barcode_seq = library.get("barcode_seq")
         elif library.get("barcode"):
