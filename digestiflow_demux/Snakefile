@@ -4,10 +4,11 @@ import os
 
 from digestiflow_demux.snakemake_support import (
     bcl2fastq_wrapper,
-    get_result_files_fastqc,
     get_result_files_demux,
+    get_result_files_fastqc,
     get_tiles_arg,
     get_tool_marker,
+    listify,
     wrapper_path,
 )
 
@@ -33,15 +34,66 @@ rule all:
 # -------------------------------------------------------------------------------------------------
 # Create "result is complete" file.
 
+@listify
+def marker_file_input(wildcards):
+    if "seq" in config["delivery_type"]:
+        yield out_prefix("multiqc/multiqc_report.html")
+        yield out_prefix("multiqc/multiqc_data.zip")
+        yield out_prefix(get_tool_marker(config))
+    if "bcl" in config["delivery_type"]:
+        yield out_prefix("TARBALLS_DONE.txt")
+
 rule marker_file:
-    input:
-        out_prefix("multiqc/multiqc_report.html"),
-        out_prefix("multiqc/multiqc_data.zip"),
-        out_prefix(get_tool_marker(config)),
+    input: marker_file_input
     output: out_prefix("DIGESTIFLOW_DEMUX_DONE.txt"),
     shell:
         r"""
         set -x; date --iso-8601=s >{output}
+        """
+
+# -------------------------------------------------------------------------------------------------
+# Create lane-wise tarballs of the input.
+
+rule create_tarballs:
+    output: out_prefix("TARBALLS_DONE.txt")
+    shell:
+        r"""
+        set -x
+        set -eu
+        # set -o pipefail
+
+        export TMPDIR=$(mktemp -d)
+        trap "rm -rf $TMPDIR" EXIT ERR
+
+        (cd $(dirname {config[input_dir]}) && \
+         find $(basename {config[input_dir]}) \
+            -type f -and \
+            -not -path '*Logs*' -and \
+            -not -path '*Data*' -and \
+            -not -path '*Thumbnail*' \
+         | sort -g \
+         > $TMPDIR/files.txt)
+
+        for i in $(seq 1 {config[flowcell][num_lanes]}); do
+            lane=$(printf %03d $i)
+
+            cat $TMPDIR/files.txt \
+            > $TMPDIR/files_L${{lane}}.txt
+
+            (cd $(dirname {config[input_dir]}) && \
+             find $(basename {config[input_dir]}) \
+                -type f -and \
+                -path '*Data*' -and \
+                -path "*/L${{lane}}*" \
+             | sort -g \
+             >> $TMPDIR/files_L${{lane}}.txt)
+
+            outf=$(dirname {output})/BCLS_LANE_${{lane}}.tar
+            tar --owner=0 --group=0 -C $(dirname {config[input_dir]}) -vcf $outf -T $TMPDIR/files_L${{lane}}.txt
+            md5sum $outf >$outf.md5
+        done
+
+        date --iso-8601=s >{output}
         """
 
 # -------------------------------------------------------------------------------------------------

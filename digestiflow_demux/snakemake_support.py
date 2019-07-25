@@ -46,7 +46,10 @@ def listify(fn=None, wrapper=list):
 
 def bcl2fastq_wrapper(config):
     """Return name of bcl2fastq wrapper to use."""
-    return {1: "bcl2fastq", 2: "bcl2fastq2"}[config["rta_version"]]
+    if config["rta_version"] == 1:
+        return "bcl2fastq"
+    else:
+        return "bcl2fastq2"
 
 
 def wrapper_path(path):

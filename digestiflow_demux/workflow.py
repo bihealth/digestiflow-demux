@@ -310,6 +310,9 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             }
         )
 
+    # Get delivery type from flowcell information.
+    delivery_type = flowcell["delivery_type"].split("_")
+
     # Normalize bases masks, decide if paired-end, find all custom bases_masks
     planned_reads = flowcell["planned_reads"]
     demux_reads = flowcell.get("demux_reads") or planned_reads
@@ -317,7 +320,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
     flowcell["demux_reads_override"] = list(demux_reads_override)
 
-    if config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 2:
+    if config.demux_tool == "bcl2fastq" and flowcell["rta_version"] >= 2:
         demux_tool = "bcl2fastq2"
     elif config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 1:
         demux_tool = "bcl2fastq1"
@@ -342,16 +345,17 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
         barcode_mismatches = flowcell["barcode_mismatches"]
     with open(os.path.join(output_dir, "demux_config.json"), "wt") as jsonf:
         config_json = {
-            "cores": config.cores,
-            "rta_version": flowcell["rta_version"],
             "barcode_mismatches": barcode_mismatches,
-            "input_dir": input_dir,
-            "output_dir": output_dir,
-            "flowcell": {**flowcell, "libraries": libraries},
-            "tiles": config.tiles,
-            "lanes": config.lanes,
-            "demux_tool": demux_tool,
             "bcl2fastq2_params": bcl2fastq2_params,
+            "cores": config.cores,
+            "delivery_type": delivery_type,
+            "demux_tool": demux_tool,
+            "flowcell": {**flowcell, "libraries": libraries},
+            "input_dir": input_dir,
+            "lanes": config.lanes,
+            "output_dir": output_dir,
+            "rta_version": flowcell["rta_version"],
+            "tiles": config.tiles,
         }
         json.dump(config_json, jsonf)
 
@@ -369,25 +373,34 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
 
 
 def send_flowcell_success_message(client, flowcell, output_dir, *log_files):
-    # Create renamed (and potentially compressed files
-    path_in = os.path.join(output_dir, "multiqc/multiqc_%s")
-    with tempfile.TemporaryDirectory() as tempdir:
-        path_out = os.path.join(tempdir, "MultiQC_%%s_%s.%%s" % flowcell["vendor_id"])
-        with open(path_in % "report.html", "rb") as f_in:
-            with gzip.open(path_out % ("Report", "html.gz"), "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        shutil.copyfile(path_in % "data.zip", path_out % ("Data", "zip"))
+    if "seq" in flowcell["delivery_type"]:
+        # Create renamed (and potentially compressed files
+        path_in = os.path.join(output_dir, "multiqc/multiqc_%s")
+        with tempfile.TemporaryDirectory() as tempdir:
+            path_out = os.path.join(tempdir, "MultiQC_%%s_%s.%%s" % flowcell["vendor_id"])
+            with open(path_in % "report.html", "rb") as f_in:
+                with gzip.open(path_out % ("Report", "html.gz"), "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            shutil.copyfile(path_in % "data.zip", path_out % ("Data", "zip"))
 
-        # Post with renamed files.
+            # Post with renamed files.
+            return client.message_send(
+                flowcell_uuid=flowcell["sodar_uuid"],
+                subject="Demultiplexing succeeded for flow cell %s" % flowcell["vendor_id"],
+                body=TPL_MSG_SUCCESS.format(flowcell=flowcell, version=__version__),
+                attachments=list(
+                    itertools.chain(
+                        [path_out % ("Report", "html.gz"), path_out % ("Data", "zip")], log_files
+                    )
+                ),
+            )
+    else:
+        # No sequences generated, no MultiQC created.
         return client.message_send(
             flowcell_uuid=flowcell["sodar_uuid"],
             subject="Demultiplexing succeeded for flow cell %s" % flowcell["vendor_id"],
             body=TPL_MSG_SUCCESS.format(flowcell=flowcell, version=__version__),
-            attachments=list(
-                itertools.chain(
-                    [path_out % ("Report", "html.gz"), path_out % ("Data", "zip")], log_files
-                )
-            ),
+            attachments=list(log_files),
         )
 
 
@@ -431,13 +444,19 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
 
     output_log_dir = os.path.join(output_dir, "log")
     output_qc_dir = os.path.join(output_dir, "multiqc")
-    if config.only_post_message:
-        for path in (
-            os.path.join(output_log_dir, "digestiflow-demux-snakemake.log.gz"),
-            os.path.join(output_log_dir, "digestiflow-demux.log"),
+
+    log_paths = [
+        os.path.join(output_log_dir, "digestiflow-demux-snakemake.log.gz"),
+        os.path.join(output_log_dir, "digestiflow-demux.log"),
+    ]
+    if "seq" in flowcell["delivery_type"]:
+        log_paths += [
             os.path.join(output_qc_dir, "multiqc_data.zip"),
             os.path.join(output_qc_dir, "multiqc_report.html"),
-        ):
+        ]
+
+    if config.only_post_message:
+        for path in log_paths:
             if not os.path.exists(path):
                 raise MissingOutputFile("Cannot post message with %s missing" % path)
 
