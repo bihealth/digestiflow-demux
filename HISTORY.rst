@@ -9,6 +9,8 @@ HEAD (unreleased)
 - Support for RTAv3 (via ``bcl2fastq2``).
 - Skipping libraries without a lane assignment.
 - Fixing creation of BCL tarballs.
+- Ignore libraries without configured lanes.
+- Fix demultiplexing with bcl2fastq v1 (MiSeq).
 
 ------
 v0.3.0
