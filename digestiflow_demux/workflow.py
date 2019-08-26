@@ -68,7 +68,7 @@ def write_sample_sheet_v1(writer, flowcell, libraries):
             barcode = "".join((lib["barcode"], "-", lib["barcode2"]))
         else:
             barcode = lib["barcode"]
-        for lane in sorted(lib.lanes):
+        for lane in sorted(lib["lanes"]):
             data = [
                 flowcell["vendor_id"],
                 lane,
@@ -78,9 +78,6 @@ def write_sample_sheet_v1(writer, flowcell, libraries):
                 "",
                 "N",
                 recipe,
-                lib.barcode_seq(1),
-                "",
-                "N",
                 recipe,
                 flowcell["operator"],
                 "Project",
