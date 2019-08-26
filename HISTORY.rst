@@ -2,9 +2,9 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
+------
+v0.3.1
+------
 
 - Support for RTAv3 (via ``bcl2fastq2``).
 - Skipping libraries without a lane assignment.
