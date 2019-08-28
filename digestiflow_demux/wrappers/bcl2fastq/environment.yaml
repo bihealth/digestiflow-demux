@@ -5,3 +5,12 @@ channels:
 - bih-cubi
 dependencies:
 - bcl2fastq
+- perl-xml-simple
+- libxml2
+- libxslt
+- perl
+- libgcc >=7.2.0
+- zlib >=1.2.8
+- bzip2
+- gnuplot
+- imagemagick

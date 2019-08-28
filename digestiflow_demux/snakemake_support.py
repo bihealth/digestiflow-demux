@@ -57,7 +57,7 @@ def wrapper_path(path):
     return "file://" + os.path.abspath(os.path.join(os.path.dirname(__file__), "wrappers", path))
 
 
-def undetermined_libraries(flowcell):
+def undetermined_libraries(flowcell, rta_version):
     """Return library dicts for undetermined libraries in ``flowcell``."""
     lanes = set()
     for library in flowcell["libraries"]:
@@ -66,7 +66,7 @@ def undetermined_libraries(flowcell):
     for lane in lanes:
         result.append(
             {
-                "name": "Undetermined",
+                "name": "lane{}".format(lane) if rta_version == 1 else "Undetermined",
                 "reference": library["reference"],
                 "barcode": "Undetermined",
                 "barcode2": "Undetermined",
@@ -80,7 +80,10 @@ def undetermined_libraries(flowcell):
 def lib_file_names(library, rta_version, n_template, n_index, lane=None, seq=None, name=None):
     """Return list with file names for the given library."""
     assert rta_version in (1, 2)
-    indices = [library["barcode"] or "NoIndex"]
+    if rta_version == 1 and library.get("barcode2", "Undetermined") not in ("", "Undetermined"):
+        indices = ["".join((library["barcode"], "-", library["barcode2"]))]
+    else:
+        indices = [library["barcode"] or "NoIndex"]
     reads = ["R" + str(i + 1) for i in range(n_template)]
     reads += ["I" + str(i + 1) for i in range(n_index)]
     lanes = ["L{:03d}".format(lno) for lno in library["lanes"] if lane is None or lno == lane]
@@ -138,7 +141,9 @@ def get_result_files_demux(config):
         else 0
     )  # TODO check picard
     expect_undetermined = True if "B" in bases_mask else False
-    undetermined = undetermined_libraries(flowcell) if expect_undetermined else []
+    undetermined = (
+        undetermined_libraries(flowcell, config["rta_version"]) if expect_undetermined else []
+    )
 
     for lib in flowcell["libraries"] + undetermined:
         for lane in sorted(lib["lanes"]):

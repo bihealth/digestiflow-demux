@@ -2,6 +2,12 @@
 Digestiflow Demux Changelog
 ===========================
 
+-----------------
+HEAD (unreleased)
+-----------------
+
+- Fixing PE demultiplexing with RTAv1 (important for MiSeq).
+
 ------
 v0.3.1
 ------

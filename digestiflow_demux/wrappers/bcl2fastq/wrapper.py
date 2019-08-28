@@ -3,9 +3,22 @@
 This file is part of Digestify Demux.
 """
 
+import os
 from snakemake import shell
 
+# A hack is required for being able to import snappy_wrappers modules when in development mode.
+# TODO: is there a more elegant way?
+base_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+sys.path.insert(0, base_dir)
+
+from digestiflow_demux.bases_mask import return_bases_mask
+
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
+
+# Get bases mask for the current sample sheet
+planned_reads = snakemake.config["flowcell"]["planned_reads"]
+demux_reads = snakemake.config["flowcell"].get("demux_reads")
+bases_mask_illumina = return_bases_mask(planned_reads, demux_reads)
 
 shell.executable("/bin/bash")
 
@@ -35,6 +48,16 @@ mkdir -p $TMPDIR
 head -n 10000 {snakemake.input.sheet}
 
 # -------------------------------------------------------------------------------------------------
+# Fixup Perl & Conda
+
+# NB: there is no good Perl ecosystem on conda and dependencies are broken. We need to fix the
+# installation of XML::Simple.
+inc=$(perl -e "print qq(@INC)" | cut -d ' ' -f 4)
+if [[ ! -e $inc/XML ]]; then
+    ln -sr $(find $(dirname $inc) -name XML | grep -v x86 | sort | tail -n 1) $inc/XML
+fi
+
+# -------------------------------------------------------------------------------------------------
 # Run blc2fastq v1
 
 # Prepare output directory with Makefile etc.
@@ -45,6 +68,7 @@ configureBclToFastq.pl \
     --input-dir {snakemake.params.input_dir}/Data/Intensities/BaseCalls \
     --output-dir $TMPDIR/demux_out \
     --fastq-cluster-count 0 \
+    --use-bases-mask {bases_mask_illumina} \
     --force \
     {snakemake.params.tiles_arg}
 

@@ -7,6 +7,11 @@ import glob
 import os
 from snakemake import shell
 
+# A hack is required for being able to import snappy_wrappers modules when in development mode.
+# TODO: is there a more elegant way?
+base_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+sys.path.insert(0, base_dir)
+
 from digestiflow_demux.bases_mask import return_bases_mask
 from digestiflow_demux.snakemake_support import build_sample_map
 

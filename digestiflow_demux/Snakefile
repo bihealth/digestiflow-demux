@@ -12,8 +12,6 @@ from digestiflow_demux.snakemake_support import (
     wrapper_path,
 )
 
-from digestiflow_demux.bases_mask import return_bases_mask
-
 # -------------------------------------------------------------------------------------------------
 # Helper Functions
 
@@ -101,7 +99,7 @@ rule create_tarballs:
 # Use bcl2fastq for flowcells with rta_version 1
 
 rule demux_bcl2fastq1:
-    input: out_prefix("SampleSheet.csv")
+    input: sheet=out_prefix("SampleSheet.csv")
     output: get_result_files_demux(config),
             marker = out_prefix("bcl2fastq1.done")
     params:

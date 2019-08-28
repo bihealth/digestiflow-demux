@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 from snakemake.exceptions import WorkflowError
 
 from digestiflow_demux import __version__
-from .bases_mask import return_bases_mask
+from .bases_mask import split_bases_mask, return_bases_mask
 from .api_client import ApiClient, ApiException
 from .exceptions import ApiProblemException, MissingOutputFile
 
@@ -62,12 +62,15 @@ def write_sample_sheet_v1(writer, flowcell, libraries):
     writer.writerow(header)
 
     demux_reads = flowcell.get("demux_reads") or flowcell["planned_reads"]
+    demux_reads = split_bases_mask(demux_reads)
+    lens = [count for base, count in demux_reads if base == "B"]
+
     recipe = "PE_indexing" if demux_reads.count("T") > 1 else "SE_indexing"
     for lib in libraries:
         if lib["barcode2"]:
-            barcode = "".join((lib["barcode"], "-", lib["barcode2"]))
+            barcode = "".join((lib["barcode"][: lens[0]], "-", lib["barcode2"][: lens[1]]))
         else:
-            barcode = lib["barcode"]
+            barcode = lib["barcode"][: lens[0]]
         for lane in sorted(lib["lanes"]):
             data = [
                 flowcell["vendor_id"],
@@ -77,7 +80,6 @@ def write_sample_sheet_v1(writer, flowcell, libraries):
                 barcode,
                 "",
                 "N",
-                recipe,
                 recipe,
                 flowcell["operator"],
                 "Project",
