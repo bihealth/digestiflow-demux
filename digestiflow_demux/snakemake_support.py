@@ -79,7 +79,7 @@ def undetermined_libraries(flowcell, rta_version):
 @listify
 def lib_file_names(library, rta_version, n_template, n_index, lane=None, seq=None, name=None):
     """Return list with file names for the given library."""
-    assert rta_version in (1, 2)
+    assert rta_version in (1, 2, 3)
     if rta_version == 1 and library.get("barcode2", "Undetermined") not in ("", "Undetermined"):
         indices = ["".join((library["barcode"], "-", library["barcode2"]))]
     else:
