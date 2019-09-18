@@ -319,7 +319,9 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
     flowcell["demux_reads_override"] = list(demux_reads_override)
 
-    if config.demux_tool == "bcl2fastq" and flowcell["rta_version"] >= 2:
+    if "M" in flowcell["demux_reads"]:
+        demux_tool = "picard"
+    elif config.demux_tool == "bcl2fastq" and flowcell["rta_version"] >= 2:
         demux_tool = "bcl2fastq2"
     elif config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 1:
         demux_tool = "bcl2fastq1"

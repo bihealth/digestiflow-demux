@@ -6,6 +6,7 @@ Digestiflow Demux Changelog
 HEAD (unreleased)
 -----------------
 
+- Automatically selecting Picard when necessary.
 - Fixing wrong assertion that disallowed RTAv3 for Picard.
 - Fixing PE demultiplexing with RTAv1 (important for MiSeq).
 

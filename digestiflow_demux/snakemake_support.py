@@ -226,7 +226,8 @@ def get_tool_marker(config):
             return "picard.done"
         else:
             raise InvalidConfiguration(
-                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' in your bases mask, but you wanted to run bcl2fastq(2)."
+                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' "
+                "in your bases mask, but you wanted to run bcl2fastq(2)."
             )
     elif config["demux_tool"] == "bcl2fastq1":
         return "bcl2fastq1.done"
