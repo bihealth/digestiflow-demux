@@ -317,9 +317,9 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     demux_reads = flowcell.get("demux_reads") or planned_reads
     demux_reads = return_bases_mask(planned_reads, demux_reads, "picard")
     flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
-    flowcell["demux_reads_override"] = list(demux_reads_override)
+    flowcell["demux_reads_override"] = list(sorted(demux_reads_override))
 
-    if "M" in flowcell["demux_reads"]:
+    if "M" in flowcell["demux_reads"]:  # TODO: refine condition
         demux_tool = "picard"
     elif config.demux_tool == "bcl2fastq" and flowcell["rta_version"] >= 2:
         demux_tool = "bcl2fastq2"
@@ -446,18 +446,18 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
     output_log_dir = os.path.join(output_dir, "log")
     output_qc_dir = os.path.join(output_dir, "multiqc")
 
-    log_paths = [
+    drmaa_log_dirs = [
         os.path.join(output_log_dir, "digestiflow-demux-snakemake.log.gz"),
         os.path.join(output_log_dir, "digestiflow-demux.log"),
     ]
     if "seq" in flowcell["delivery_type"]:
-        log_paths += [
+        drmaa_log_dirs += [
             os.path.join(output_qc_dir, "multiqc_data.zip"),
             os.path.join(output_qc_dir, "multiqc_report.html"),
         ]
 
     if config.only_post_message:
-        for path in log_paths:
+        for path in drmaa_log_dirs:
             if not os.path.exists(path):
                 raise MissingOutputFile("Cannot post message with %s missing" % path)
 
@@ -474,11 +474,21 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
             os.path.join(output_dir, "demux_config.json"),
             "--cores",
             config.cores,
+            "--drmaa-log-dir",
+            output_log_dir,
+            "--max-jobs-per-second",
+            config.max_jobs_per_second,
             "--use-conda",
             "--config",
         ]
+        if config.jobscript:
+            argv += ["--jobscript", config.jobscript]
         if config.verbose:
             argv += ["--verbose", "--printshellcmds"]
+        if config.drmaa:
+            argv += ["--drmaa", config.drmaa]
+        if config.cluster_config:
+            argv += ["--cluster-config", config.cluster_config]
         argv = list(map(str, argv))
         logging.info("Executing: snakemake %s", " ".join(argv))
         try:
@@ -502,8 +512,16 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
             logging.warning("Running demultiplexing failed: %s", e)
             failure = True
 
+    # Paths to tarballs with Illumina HTML reports.
+    paths_html_reports = [
+        os.path.join(output_dir, "html_report_%s.tar.gz" % bases_mask)
+        for bases_mask in flowcell["demux_reads_override"]
+    ]
+
     if not failure and not config.api_read_only:
-        message = send_flowcell_success_message(client, flowcell, output_dir, log_file_path)
+        message = send_flowcell_success_message(
+            client, flowcell, output_dir, log_file_path, *paths_html_reports
+        )
         logging.info("Marking flowcell as complete...")
         try:
             client.flowcell_update(flowcell["sodar_uuid"], status_conversion="complete")

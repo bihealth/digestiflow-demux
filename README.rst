@@ -64,6 +64,20 @@ The following shows all configuration settings loaded from ``~/.digestiflowrc.to
     # Whether or not to decrease verbosity.
     quiet = false
 
+You can configure cluster execution in the configuration file by the following settings in the ``[demux]`` section.
+
+::
+
+    [demux]
+    # The number of cores to use.
+    threads = 32
+    # DRMAA command line to use (see snakemake's --drmaa), note the leading space.
+    drmaa = " -V -cwd -S /bin/bash ..."
+    # Cluster configuration JSON file.
+    cluster_config = "/home/demux_user/.digestiflow.cluster_config.json"
+    # Optional path to Snakemake job script to use.
+    jobscript = "/home/demux_user/.digestiflow.jobscript.sh"
+
 Calling
 =======
 

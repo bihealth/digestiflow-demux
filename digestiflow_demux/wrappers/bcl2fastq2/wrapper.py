@@ -74,7 +74,7 @@ bcl2fastq \
     --use-bases-mask {bases_mask_illumina} \
     {add_params} {snakemake.params.tiles_arg}
 
-tree $TMPDIR/demux_out
+ls -lhR $TMPDIR/demux_out
 
 # -------------------------------------------------------------------------------------------------
 # Move Files to Destination.

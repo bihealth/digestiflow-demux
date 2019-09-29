@@ -10,6 +10,9 @@ HEAD (unreleased)
 - Fixing wrong assertion that disallowed RTAv3 for Picard.
 - Fixing PE demultiplexing with RTAv1 (important for MiSeq).
 - Fixing setting of temporary directory.
+- Bumping FastQC dependency.
+- Allowing for using Snakemake DRMAA execution.
+- Posting Illumina demultiplexing HTML report to Digestiflow Server.
 
 ------
 v0.3.1

@@ -64,6 +64,14 @@ class DemuxConfig:
 
     #: Path to temporary logging file
     log_path = attr.ib()
+    #: Path to jobscript, optional.
+    jobscript = attr.ib()
+    #: Max. no of jobs per second
+    max_jobs_per_second = attr.ib()
+    #: Snakemake ``--drmaa`` value
+    drmaa = attr.ib()
+    #: Snakemake ``--cluster-config`` value
+    cluster_config = attr.ib()
 
     @classmethod
     def build(cls, config, log_path=None):
@@ -81,11 +89,15 @@ class DemuxConfig:
             work_dir=config["demux"]["work_dir"],
             tiles=config["demux"]["tiles"],
             lanes=config["demux"]["lanes"],
-            cores=config["threads"],
+            cores=config["demux"]["threads"],
+            max_jobs_per_second=config["demux"]["max_jobs_per_second"],
             verbose=config["verbose"],
             quiet=config["quiet"],
             log_api_token=config["log_api_token"],
             log_path=log_path,
+            jobscript=config["demux"]["jobscript"],
+            drmaa=config["demux"]["drmaa"],
+            cluster_config=config["demux"]["cluster_config"],
         )
 
 
@@ -152,7 +164,10 @@ def merge_config_args(config, args):
     config.setdefault("demux", {}).setdefault("keep_work_dir", False)
     if args.keep_work_dir:
         config["demux"]["keep_work_dir"] = True
-    config.setdefault("threads", 1)
+    config.setdefault("demux", {}).setdefault("max_jobs_per_second", 10)
+    if args.max_jobs_per_second:
+        config["demux"]["max_jobs_per_second"] = args.max_jobs_per_second
+    config.setdefault("demux", {}).setdefault("threads", 1)
     if args.cores:
         config["threads"] = args.cores
     config.setdefault("verbose", False)
@@ -164,8 +179,12 @@ def merge_config_args(config, args):
     config.setdefault("with_failed_reads", False)
     if args.with_failed_reads is True:
         config["with_failed_reads"] = True
+    config.setdefault("demux", {})["drmaa"] = args.drmaa
+    config.setdefault("demux", {})["cluster_config"] = args.cluster_config
+    config.setdefault("demux", {})["jobscript"] = args.jobscript
 
     config["log_api_token"] = args.log_api_token
+
     config.setdefault("demux", {})["tiles"] = args.tiles
     config.setdefault("demux", {})["lanes"] = args.lanes
     config.setdefault("demux", {})["work_dir"] = args.work_dir
@@ -260,6 +279,17 @@ def main(argv=None):
         action="store_true",
         help="Force demultiplexing even if flow cell not marked as ready",
     )
+    parser.add_argument(
+        "--drmaa",
+        required=False,
+        help=(
+            "Pass as --drmaa argument to snakemake call (make sure to define environment "
+            "variable DRMAA_LIBRARY_PATH)."
+        ),
+    )
+    parser.add_argument(
+        "--cluster-config", required=False, help="Pass as --cluster-config to snakemake call."
+    )
     parser.add_argument("--project-uuid", help="Project UUID to register flowcell for")
     parser.add_argument("--cores", type=int, help="Degree of parallelism to use")
     parser.add_argument("--verbose", action="store_true", default=None, help="Increase verbosity")
@@ -271,7 +301,13 @@ def main(argv=None):
         help="Keep temporary working directory (useful only for debugging)",
     )
     parser.add_argument(
+        "--max-jobs-per-second", default=10, help="Max jobs per second to submit, default is 10."
+    )
+    parser.add_argument(
         "--work-dir", help="Specify working directory (instead of using temporary one)"
+    )
+    parser.add_argument(
+        "--jobscript", help="Optional path to the jobscript to use when using DRMAA."
     )
 
     parser.add_argument("output_dir", metavar="OUT_DIR", help="Path to output directory")
