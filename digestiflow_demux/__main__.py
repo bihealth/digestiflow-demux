@@ -89,7 +89,7 @@ class DemuxConfig:
             work_dir=config["demux"]["work_dir"],
             tiles=config["demux"]["tiles"],
             lanes=config["demux"]["lanes"],
-            cores=config["demux"]["threads"],
+            cores=config["threads"],
             max_jobs_per_second=config["demux"]["max_jobs_per_second"],
             verbose=config["verbose"],
             quiet=config["quiet"],

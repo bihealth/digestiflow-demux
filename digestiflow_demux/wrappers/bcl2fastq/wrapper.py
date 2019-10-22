@@ -4,6 +4,8 @@ This file is part of Digestify Demux.
 """
 
 import os
+import sys
+
 from snakemake import shell
 
 # A hack is required for being able to import snappy_wrappers modules when in development mode.
@@ -11,13 +13,13 @@ from snakemake import shell
 base_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, base_dir)
 
-from digestiflow_demux.bases_mask import return_bases_mask
+from digestiflow_demux.bases_mask import return_bases_mask  # noqa: E402
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
 # Get bases mask for the current sample sheet
-planned_reads = snakemake.config["flowcell"]["planned_reads"]
-demux_reads = snakemake.config["flowcell"].get("demux_reads")
+planned_reads = snakemake.config["flowcell"]["planned_reads"]  # noqa: F821
+demux_reads = snakemake.config["flowcell"].get("demux_reads")  # noqa: F821
 bases_mask_illumina = return_bases_mask(planned_reads, demux_reads)
 
 shell.executable("/bin/bash")

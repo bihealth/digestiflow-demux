@@ -9,6 +9,9 @@ from .exceptions import InvalidConfiguration
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
+#: Smallest RTA version to trigger call of bcl2fastq v2.
+RTA_MIN_BCL2FASTQ2 = (1, 18, 54)
+
 
 def listify(fn=None, wrapper=list):
     """
@@ -46,14 +49,20 @@ def listify(fn=None, wrapper=list):
     return listify_return(fn)
 
 
-def bcl2fastq_wrapper(config):
-    """Return name of bcl2fastq wrapper to use."""
+def config_to_rta_version(config):
+    """Given the flow cell configuration, return RTA version tuple."""
     input_dir = config["input_dir"]
     path_run_info = glob.glob(os.path.join(input_dir, "?un?arameters.xml"))[0]
     run_parameters = load_run_parameters(path_run_info)
     rta_version = run_parameters["rta_version"].split(".")
     rta_version = tuple(map(int, rta_version))
-    if rta_version >= (1, 18, 54):
+    return rta_version
+
+
+def bcl2fastq_wrapper(config):
+    """Return name of bcl2fastq wrapper to use."""
+    rta_version = config_to_rta_version(config)
+    if rta_version >= RTA_MIN_BCL2FASTQ2:
         return "bcl2fastq2"
     else:
         return "bcl2fastq"
@@ -73,7 +82,9 @@ def undetermined_libraries(flowcell, rta_version):
     for lane in lanes:
         result.append(
             {
-                "name": "lane{}".format(lane) if rta_version == 1 else "Undetermined",
+                "name": "lane{}".format(lane)
+                if rta_version < RTA_MIN_BCL2FASTQ2
+                else "Undetermined",
                 "reference": library["reference"],
                 "barcode": "Undetermined",
                 "barcode2": "Undetermined",
@@ -86,8 +97,10 @@ def undetermined_libraries(flowcell, rta_version):
 @listify
 def lib_file_names(library, rta_version, n_template, n_index, lane=None, seq=None, name=None):
     """Return list with file names for the given library."""
-    assert rta_version in (1, 2, 3)
-    if rta_version == 1 and library.get("barcode2", "Undetermined") not in ("", "Undetermined"):
+    if rta_version < RTA_MIN_BCL2FASTQ2 and library.get("barcode2", "Undetermined") not in (
+        "",
+        "Undetermined",
+    ):
         indices = ["".join((library["barcode"], "-", library["barcode2"]))]
     else:
         indices = [library["barcode"] or "NoIndex"]
@@ -98,7 +111,7 @@ def lib_file_names(library, rta_version, n_template, n_index, lane=None, seq=Non
         seq = ""
     else:
         seq = seq + "_"
-    if rta_version == 1:
+    if rta_version < RTA_MIN_BCL2FASTQ2:
         tpl = "{sample_name}_{index}_{lane}_{read}_001.fastq.gz"
     else:
         tpl = "{sample_name}_{seq}{lane}_{read}_001.fastq.gz"
@@ -148,9 +161,8 @@ def get_result_files_demux(config):
         else 0
     )  # TODO check picard
     expect_undetermined = True if "B" in bases_mask else False
-    undetermined = (
-        undetermined_libraries(flowcell, config["rta_version"]) if expect_undetermined else []
-    )
+    rta_version = config_to_rta_version(config)
+    undetermined = undetermined_libraries(flowcell, rta_version) if expect_undetermined else []
 
     for lib in flowcell["libraries"] + undetermined:
         for lane in sorted(lib["lanes"]):
@@ -167,15 +179,13 @@ def get_result_files_demux(config):
                 lane=lane,
             )
 
-            if config["rta_version"] == 1 or config["demux_tool"] == "picard":
-                for fname in lib_file_names(lib, config["rta_version"], n_template, n_index, lane):
+            if rta_version < RTA_MIN_BCL2FASTQ2 or config["demux_tool"] == "picard":
+                for fname in lib_file_names(lib, rta_version, n_template, n_index, lane):
                     yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
             else:
                 seq = sample_map.get(sample_name, "S0")
                 name = "Undetermined" if lib["barcode"] == "Undetermined" else lib["name"]
-                for fname in lib_file_names(
-                    lib, config["rta_version"], n_template, n_index, lane, seq, name
-                ):
+                for fname in lib_file_names(lib, rta_version, n_template, n_index, lane, seq, name):
                     yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
 
 

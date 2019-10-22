@@ -212,14 +212,13 @@ def load_run_info(path_run_info_xml):
         "flowcell": tag_run.find("Flowcell").text,
     }
 
+
 def load_run_parameters(path_run_parameters_xml):
     """Load information from ``runParameters.xml`` file."""
     with open(path_run_parameters_xml, "rt") as xmlf:
         xmls = xmlf.read()
     root = ET.fromstring(xmls)
-    return {
-        "rta_version": root.find("RTAVersion").text,
-    }
+    return {"rta_version": root.find("RTAVersion").text}
 
 
 def remove_old_samplesheets(output_dir):

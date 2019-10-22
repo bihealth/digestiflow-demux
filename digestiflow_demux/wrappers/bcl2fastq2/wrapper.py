@@ -5,6 +5,7 @@ This file is part of Digestify Demux.
 
 import glob
 import os
+import sys
 from snakemake import shell
 
 # A hack is required for being able to import snappy_wrappers modules when in development mode.
@@ -12,8 +13,8 @@ from snakemake import shell
 base_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, base_dir)
 
-from digestiflow_demux.bases_mask import return_bases_mask
-from digestiflow_demux.snakemake_support import build_sample_map
+from digestiflow_demux.bases_mask import return_bases_mask  # noqa: E402
+from digestiflow_demux.snakemake_support import build_sample_map  # noqa: E402
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
