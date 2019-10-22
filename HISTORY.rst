@@ -13,6 +13,7 @@ HEAD (unreleased)
 - Bumping FastQC dependency.
 - Allowing for using Snakemake DRMAA execution.
 - Posting Illumina demultiplexing HTML report to Digestiflow Server.
+- Allowing latest RTA v1.x to be demultiplexed with bcl2fastq v2.
 
 ------
 v0.3.1

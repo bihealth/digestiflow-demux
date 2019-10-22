@@ -4,7 +4,7 @@ channels:
 - defaults
 - bih-cubi
 dependencies:
-- bcl2fastq
+#- bcl2fastq
 - perl-xml-simple
 - libxml2
 - libxslt

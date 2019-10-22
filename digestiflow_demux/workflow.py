@@ -2,6 +2,7 @@
 
 import collections
 import csv
+import glob
 import gzip
 import itertools
 import json
@@ -211,6 +212,15 @@ def load_run_info(path_run_info_xml):
         "flowcell": tag_run.find("Flowcell").text,
     }
 
+def load_run_parameters(path_run_parameters_xml):
+    """Load information from ``runParameters.xml`` file."""
+    with open(path_run_parameters_xml, "rt") as xmlf:
+        xmls = xmlf.read()
+    root = ET.fromstring(xmls)
+    return {
+        "rta_version": root.find("RTAVersion").text,
+    }
+
 
 def remove_old_samplesheets(output_dir):
     """Remove old sample sheets so that snakemake does not get confused."""
@@ -232,6 +242,8 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
 
     logging.debug("Parsing RunInfo.xml file")
     run_info = load_run_info(os.path.join(input_dir, "RunInfo.xml"))
+    path_run_info = glob.glob(os.path.join(input_dir, "?un?arameters.xml"))[0]
+    run_parameters = load_run_parameters(path_run_info)
 
     logging.debug("Querying API for flow cell")
     try:
@@ -319,14 +331,18 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
     flowcell["demux_reads_override"] = list(sorted(demux_reads_override))
 
+    rta_version = run_parameters["rta_version"].split(".")
+    rta_version = tuple(map(int, rta_version))
+
     if "M" in flowcell["demux_reads"]:  # TODO: refine condition
         demux_tool = "picard"
-    elif config.demux_tool == "bcl2fastq" and flowcell["rta_version"] >= 2:
+    elif config.demux_tool == "bcl2fastq" and rta_version >= (1, 18, 54):
         demux_tool = "bcl2fastq2"
-    elif config.demux_tool == "bcl2fastq" and flowcell["rta_version"] == 1:
+    elif config.demux_tool == "bcl2fastq":
         demux_tool = "bcl2fastq1"
     else:
         demux_tool = "picard"
+    logging.info("Using demux tool %s", demux_tool)
 
     bcl2fastq2_params = {
         "with_failed_reads": config.with_failed_reads,

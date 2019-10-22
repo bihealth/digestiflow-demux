@@ -1,8 +1,10 @@
 """Code for supporting the Snakemake file."""
 
 import functools
+import glob
 import os
 
+from .workflow import load_run_parameters
 from .exceptions import InvalidConfiguration
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
@@ -46,10 +48,15 @@ def listify(fn=None, wrapper=list):
 
 def bcl2fastq_wrapper(config):
     """Return name of bcl2fastq wrapper to use."""
-    if config["rta_version"] == 1:
-        return "bcl2fastq"
-    else:
+    input_dir = config["input_dir"]
+    path_run_info = glob.glob(os.path.join(input_dir, "?un?arameters.xml"))[0]
+    run_parameters = load_run_parameters(path_run_info)
+    rta_version = run_parameters["rta_version"].split(".")
+    rta_version = tuple(map(int, rta_version))
+    if rta_version >= (1, 18, 54):
         return "bcl2fastq2"
+    else:
+        return "bcl2fastq"
 
 
 def wrapper_path(path):
