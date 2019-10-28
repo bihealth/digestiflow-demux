@@ -2,9 +2,9 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
+------
+v0.4.0
+------
 
 - Automatically selecting Picard when necessary.
 - Fixing wrong assertion that disallowed RTAv3 for Picard.
