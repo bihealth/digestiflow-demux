@@ -218,7 +218,7 @@ def load_run_parameters(path_run_parameters_xml):
     with open(path_run_parameters_xml, "rt") as xmlf:
         xmls = xmlf.read()
     root = ET.fromstring(xmls)
-    return {"rta_version": root.find("RTAVersion").text}
+    return {"rta_version": list(root.iter("RTAVersion"))[0].text}
 
 
 def remove_old_samplesheets(output_dir):

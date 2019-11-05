@@ -3,6 +3,12 @@ Digestiflow Demux Changelog
 ===========================
 
 ------
+v0.4.1
+------
+
+- Fixing bug with XML parsing.
+
+------
 v0.4.0
 ------
 
