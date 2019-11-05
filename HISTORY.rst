@@ -6,6 +6,7 @@ Digestiflow Demux Changelog
 v0.4.1
 ------
 
+- Adding ``--config`` argument.
 - Fixing bug with XML parsing.
 
 ------

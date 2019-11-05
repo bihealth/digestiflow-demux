@@ -123,10 +123,13 @@ def setup_logging(demux_config):
     return handler  # so we can later flush()
 
 
-def load_config():
+def load_config(config_path=None):
     """Load configuration file"""
     config = {}
-    for path in ("~/.digestiflowrc.toml", "~/digestiflowrc.toml"):
+    paths = ["~/.digestiflowrc.toml", "~/digestiflowrc.toml"]
+    if config_path:
+        paths = [config_path] + paths
+    for path in paths:
         if os.path.exists(os.path.expanduser(path)):
             logging.info("Loading configuration file %s, not looking further afterwards", path)
             with open(os.path.expanduser(path), "rt") as tomlf:
@@ -249,6 +252,7 @@ def main(argv=None):
     # Setup argument parser and parse command line arguments.
     parser = argparse.ArgumentParser(description="Run demultiplexing for Digestiflow")
 
+    parser.add_argument("--config", default=None, help="Path to configuration TOML file to load.")
     parser.add_argument(
         "--demux-tool",
         choices=["bcl2fastq", "picard"],
@@ -346,7 +350,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     # Load configuration and merge with arguments.
-    config = merge_config_args(load_config(), args)
+    config = merge_config_args(load_config(args.config), args)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         demux_config = DemuxConfig.build(config, tmpdir)
