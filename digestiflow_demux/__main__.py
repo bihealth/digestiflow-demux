@@ -182,9 +182,12 @@ def merge_config_args(config, args):
     config.setdefault("with_failed_reads", False)
     if args.with_failed_reads is True:
         config["with_failed_reads"] = True
-    config.setdefault("demux", {})["drmaa"] = args.drmaa
-    config.setdefault("demux", {})["cluster_config"] = args.cluster_config
-    config.setdefault("demux", {})["jobscript"] = args.jobscript
+    if args.drmaa:
+        config.setdefault("demux", {})["drmaa"] = args.drmaa
+    if args.cluster_config:
+        config.setdefault("demux", {})["cluster_config"] = args.cluster_config
+    if args.jobscript:
+        config.setdefault("demux", {})["jobscript"] = args.jobscript
 
     config["log_api_token"] = args.log_api_token
 
