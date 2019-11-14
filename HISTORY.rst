@@ -2,9 +2,9 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
+------
+v0.4.2
+------
 
 - Fixing interpretation of config vs. args.
 
