@@ -2,6 +2,12 @@
 Digestiflow Demux Changelog
 ===========================
 
+-----------------
+HEAD (unreleased)
+-----------------
+
+- Adjustment to NovaSeq firmware.
+
 ------
 v0.4.2
 ------

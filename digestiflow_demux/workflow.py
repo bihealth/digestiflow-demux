@@ -217,8 +217,12 @@ def load_run_parameters(path_run_parameters_xml):
     """Load information from ``runParameters.xml`` file."""
     with open(path_run_parameters_xml, "rt") as xmlf:
         xmls = xmlf.read()
-    root = ET.fromstring(xmls)
-    return {"rta_version": list(root.iter("RTAVersion"))[0].text}
+    root = ET.fromstring(xmls.lower())
+    version_string = next(root.iter("rtaversion")).text
+    if version_string.startswith("v"):
+        version_string = version_string[1:]
+    rta_version = version_string.split(".")[0]
+    return {"rta_version": rta_version}
 
 
 def remove_old_samplesheets(output_dir):
