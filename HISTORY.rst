@@ -6,6 +6,7 @@ Digestiflow Demux Changelog
 HEAD (unreleased)
 -----------------
 
+- Allowing to run without cluster.
 - Adjustment to NovaSeq firmware.
 
 ------

@@ -95,9 +95,9 @@ class DemuxConfig:
             quiet=config["quiet"],
             log_api_token=config["log_api_token"],
             log_path=log_path,
-            jobscript=config["demux"]["jobscript"],
-            drmaa=config["demux"]["drmaa"],
-            cluster_config=config["demux"]["cluster_config"],
+            jobscript=config["demux"].get("jobscript"),
+            drmaa=config["demux"].get("drmaa"),
+            cluster_config=config["demux"].get("cluster_config"),
         )
 
 
