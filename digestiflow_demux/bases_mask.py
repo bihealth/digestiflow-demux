@@ -38,7 +38,7 @@ def split_bases_mask(bases_mask):
     return result
 
 
-def compare_bases_mask(planned_reads, bases_mask):
+def compare_bases_mask(planned_reads, bases_mask, demux_tool="bcl2fastq"):
     """Match user input bases mask to planned_reads from flowcell and decide if compatible.
     Return list of lists of tuples with type and number of cycles"""
 
@@ -50,21 +50,27 @@ def compare_bases_mask(planned_reads, bases_mask):
     if not sum(lengths1) == sum(lengths2):
         raise BaseMaskConfigException("Your base mask has more or fewer cycles than planned")
 
-    matched_mask = []
-    for _type, cycles in planned:
-        read = []
-        s = 0
-        while s < cycles:
-            i = mask.pop(0)
-            read.append(i)
-            s += i[1]
-        if s > cycles:
-            raise BaseMaskConfigException(
-                "Your base mask has more or fewer cycles than planned for a read"
-            )
-        matched_mask.append(read)
+    if demux_tool != "bcl2fastq":
+        return [[x] for x in mask]
 
-    return matched_mask
+    exp_mask = []
+    for op, cycles in mask:
+        for i in range(cycles):
+            exp_mask.append((op, 1))
+
+    result = []
+    offset = 0
+    for p_type, p_cycles in planned:
+        curr = []
+        for m_type, _ in exp_mask[offset:offset+p_cycles]:
+            if curr and curr[-1][0] == m_type:
+                curr[-1][1] += 1
+            else:
+                curr.append([m_type, 1])
+        result.append(list(map(tuple, curr)))
+        offset += p_cycles
+
+    return result
 
 
 def translate_tuple_to_basemask(tup, demux_tool):
@@ -85,7 +91,7 @@ def return_bases_mask(planned_reads, demux_reads, demux_tool="bcl2fastq"):
     if "M" in demux_reads and demux_tool == "bcl2fastq":
         raise BaseMaskConfigException("You cannot assign UMIs ('M') if using bcl2fastq")
 
-    mask_list = compare_bases_mask(planned_reads, demux_reads)
+    mask_list = compare_bases_mask(planned_reads, demux_reads, demux_tool)
 
     new_mask = []
     for lst in mask_list:

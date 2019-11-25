@@ -18,7 +18,7 @@ import xml.etree.ElementTree as ET
 from snakemake.exceptions import WorkflowError
 
 from digestiflow_demux import __version__
-from .bases_mask import split_bases_mask, return_bases_mask
+from .bases_mask import split_bases_mask, return_bases_mask, BaseMaskConfigException
 from .api_client import ApiClient, ApiException
 from .exceptions import ApiProblemException, MissingOutputFile
 
@@ -310,8 +310,13 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             demux_reads = library["demux_reads"]
         else:
             demux_reads = flowcell["demux_reads"] or flowcell["planned_reads"]
-        demux_reads = return_bases_mask(flowcell["planned_reads"], demux_reads, "picard")
-        demux_reads_override.add(demux_reads)
+
+        try:
+            demux_reads = return_bases_mask(flowcell["planned_reads"], demux_reads, "picard")
+            demux_reads_override.add(demux_reads)
+        except BaseMaskConfigException as e:
+            logging.warning("There is a problem with the bases mask. %s", e)
+            logging.exception(e, exc_info=True)
 
         libraries.append(
             {
