@@ -2,12 +2,13 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
+------
+v0.5.0
+------
 
 - Allowing to run without cluster.
 - Adjustment to NovaSeq firmware.
+- Fixing base mask computation.
 
 ------
 v0.4.2
