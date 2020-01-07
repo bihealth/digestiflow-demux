@@ -8,7 +8,6 @@ import itertools
 import json
 import logging
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -507,13 +506,13 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
             "--config",
         ]
         if config.jobscript:
-            argv += ["--jobscript", shlex.quote(config.jobscript)]
+            argv += ["--jobscript", config.jobscript]
         if config.verbose:
             argv += ["--verbose", "--printshellcmds"]
         if config.drmaa:
-            argv += ["--drmaa", shlex.quote(config.drmaa)]
+            argv += ["--drmaa", config.drmaa]
         if config.cluster_config:
-            argv += ["--cluster-config", shlex.quote(config.cluster_config)]
+            argv += ["--cluster-config", config.cluster_config]
         argv = list(map(str, argv))
         logging.info("Executing: snakemake %s", " ".join(argv))
         try:

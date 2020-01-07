@@ -2,12 +2,6 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
-
-- Fixing quoting in snakemake call.
-
 ------
 v0.5.0
 ------
