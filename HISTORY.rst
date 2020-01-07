@@ -2,9 +2,9 @@
 Digestiflow Demux Changelog
 ===========================
 
------------------
-HEAD (unreleased)
------------------
+------
+v0.5.1
+------
 
 - Do not attempt to process empty flow cell.
 
