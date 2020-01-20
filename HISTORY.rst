@@ -2,6 +2,12 @@
 Digestiflow Demux Changelog
 ===========================
 
+-----------------
+HEAD (unreleased)
+-----------------
+
+- Adding the possibility to filter input folders by name to the flow cells that are marked as ready on the server.
+
 ------
 v0.5.1
 ------

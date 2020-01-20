@@ -62,7 +62,7 @@ def compare_bases_mask(planned_reads, bases_mask, demux_tool="bcl2fastq"):
     offset = 0
     for p_type, p_cycles in planned:
         curr = []
-        for m_type, _ in exp_mask[offset:offset+p_cycles]:
+        for m_type, _ in exp_mask[offset : offset + p_cycles]:
             if curr and curr[-1][0] == m_type:
                 curr[-1][1] += 1
             else:

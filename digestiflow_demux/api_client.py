@@ -34,6 +34,18 @@ class ApiClient:
             else:
                 raise ApiException("Problem performing API call") from e
 
+    def flowcell_list(self, **kwargs):
+        valid_kwargs = ("status_sequencing", "status_conversion", "status_delivery")
+        query_kwargs = {key: value for key, value in kwargs.items() if key in valid_kwargs}
+        tpl = "/api/flowcells/%s/"
+        url = tpl % (self.project_uuid,)
+        try:
+            res = requests.get(self.api_url + url, headers=self._headers(), params=query_kwargs)
+            res.raise_for_status()
+            return res.json()
+        except Exception as e:
+            raise Exception("Problem performing API call") from e
+
     def flowcell_resolve(self, instrument_id, run_no, flowcell_id):
         """Resolve flow cell."""
         tpl = "/api/flowcells/resolve/%s/%s/%s/%s/"

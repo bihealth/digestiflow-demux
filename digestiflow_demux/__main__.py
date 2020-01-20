@@ -11,6 +11,7 @@ import coloredlogs
 import tempfile
 import toml
 
+from .api_client import ApiClient
 from .exceptions import ApiProblemException
 from .bases_mask import BaseMaskConfigException
 from .workflow import perform_demultiplexing
@@ -34,6 +35,8 @@ class DemuxConfig:
     api_read_only = attr.ib()
     #: Force demultiplexing even if not marked as ready.
     force_demultiplexing = attr.ib()
+    #: Filter folder names by flow cell vendor ID.
+    filter_folder_names = attr.ib()
     #: Whether to only post message for previous run.
     only_post_message = attr.ib()
     #: The project UUID to register the flowcell in
@@ -82,6 +85,7 @@ class DemuxConfig:
             api_token=config["web"]["token"],
             api_read_only=config["web"]["api_read_only"],
             force_demultiplexing=config["web"]["force_demultiplexing"],
+            filter_folder_names=config["web"]["filter_folder_names"],
             only_post_message=config["web"]["only_post_message"],
             demux_tool=config["demux"]["demux_tool"],
             with_failed_reads=config["with_failed_reads"],
@@ -154,6 +158,9 @@ def merge_config_args(config, args):
     config.setdefault("web", {}).setdefault("force_demultiplexing", None)
     if args.force_demultiplexing:
         config["web"]["force_demultiplexing"] = args.force_demultiplexing
+    config.setdefault("web", {}).setdefault("filter_folder_names", None)
+    if args.filter_folder_names:
+        config["web"]["filter_folder_names"] = args.filter_folder_names
     config.setdefault("web", {}).setdefault("api_read_only", None)
     if args.api_read_only:
         config["web"]["api_read_only"] = args.api_read_only
@@ -211,6 +218,19 @@ def run(config, output_dir, input_dirs, log_handler):
     logging.info("Configuration is: %s", config)
     if config.log_api_token:
         logging.debug("  API token is %s", config.api_token)
+
+    if config.filter_folder_names:
+        logging.info("Querying API for flow cells that are ready.")
+        client = ApiClient(
+            api_url=config.api_url, api_token=config.api_token, project_uuid=config.project_uuid
+        )
+        flowcells = client.flowcell_list(status_conversion="ready")
+        vendor_ids = [f['vendor_id'] for f in flowcells]
+        logging.info("=> found %d ready flow cells", len(vendor_ids))
+        logging.info("Filtering folder names...")
+        old_len = len(input_dirs)
+        input_dirs = [i for i in input_dirs if any([v in i for v in vendor_ids])]
+        logging.info("=> %d of %d folders matched", len(input_dirs), old_len)
 
     any_failure = False
     base_output_dir = os.path.realpath(output_dir)
@@ -286,6 +306,14 @@ def main(argv=None):
         "--force-demultiplexing",
         action="store_true",
         help="Force demultiplexing even if flow cell not marked as ready",
+    )
+    parser.add_argument(
+        "--filter-folder-names",
+        action="store_true",
+        help=(
+            "Filter folder names to those containing the vendor ID of a flow cell that "
+            "has been marked as ready for demultiplexing in the server."
+        ),
     )
     parser.add_argument(
         "--drmaa",
