@@ -221,7 +221,7 @@ def load_run_parameters(path_run_parameters_xml):
     version_string = next(root.iter("rtaversion")).text
     if version_string.startswith("v"):
         version_string = version_string[1:]
-    rta_version = version_string.split(".")[0]
+    rta_version = tuple(map(int, version_string.split(".")))
     return {"rta_version": rta_version}
 
 
@@ -247,6 +247,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     run_info = load_run_info(os.path.join(input_dir, "RunInfo.xml"))
     path_run_info = glob.glob(os.path.join(input_dir, "?un?arameters.xml"))[0]
     run_parameters = load_run_parameters(path_run_info)
+    logging.debug("RTA version is: %s", run_parameters["rta_version"])
 
     logging.debug("Querying API for flow cell")
     try:
@@ -342,8 +343,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     flowcell["demux_reads"] = demux_reads  # not used by bcl2fastq2
     flowcell["demux_reads_override"] = list(sorted(demux_reads_override))
 
-    rta_version = run_parameters["rta_version"].split(".")
-    rta_version = tuple(map(int, rta_version))
+    rta_version = run_parameters["rta_version"]
 
     if "M" in flowcell["demux_reads"]:  # TODO: refine condition
         demux_tool = "picard"

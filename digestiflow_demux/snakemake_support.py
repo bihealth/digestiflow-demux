@@ -54,8 +54,7 @@ def config_to_rta_version(config):
     input_dir = config["input_dir"]
     path_run_info = glob.glob(os.path.join(input_dir, "?un?arameters.xml"))[0]
     run_parameters = load_run_parameters(path_run_info)
-    rta_version = run_parameters["rta_version"].split(".")
-    rta_version = tuple(map(int, rta_version))
+    rta_version = run_parameters["rta_version"]
     return rta_version
 
 
