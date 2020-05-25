@@ -3,24 +3,30 @@
 This file is parth of Digestifly Demux.
 """
 
+import tempfile
+
 from snakemake import shell
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
 shell.executable("/bin/bash")
 
-shell(
-    r"""
-set -x
-set -euo pipefail
+with tempfile.NamedTemporaryFile("wt+") as listf:
+  print("\n".join(snakemake.input), file=listf)
+  listf.flush()
+  listf.seek(0)
 
-rm -f {snakemake.output}
+  shell(
+      r"""
+  set -x
+  set -euo pipefail
 
-multiqc \
-    --zip-data-dir \
-    --outdir $(dirname {snakemake.output.html}) \
-    --interactive \
-    {snakemake.input}
+  rm -f {snakemake.output}
 
-"""
-)
+  multiqc \
+      --zip-data-dir \
+      --outdir $(dirname {snakemake.output.html}) \
+      --interactive \
+      $(cat {listf.name})
+  """
+  )
