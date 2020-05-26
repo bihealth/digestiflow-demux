@@ -31,6 +31,11 @@ The demultiplexing succeeded for flow cell {flowcell[vendor_id]}.
 
 See the attached files for quality reports.
 
+The following attachments were not present (this is OK for HTML reports that are not generated
+by Picard):
+
+{missing_log_files}
+
 --
 This message was auto-created by digestiflow-demux v{version}.
 """
@@ -402,6 +407,10 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
 
 def send_flowcell_success_message(client, flowcell, output_dir, *log_files):
     if "seq" in flowcell["delivery_type"]:
+        # Remove log files that do not exist.
+        existing_log_files = [p for p in log_files if os.path.exists(p)]
+        missing_log_files = [p for p in log_files if not os.path.exists(p)]
+
         # Create renamed (and potentially compressed files
         path_in = os.path.join(output_dir, "multiqc/multiqc_%s")
         with tempfile.TemporaryDirectory() as tempdir:
@@ -415,10 +424,15 @@ def send_flowcell_success_message(client, flowcell, output_dir, *log_files):
             return client.message_send(
                 flowcell_uuid=flowcell["sodar_uuid"],
                 subject="Demultiplexing succeeded for flow cell %s" % flowcell["vendor_id"],
-                body=TPL_MSG_SUCCESS.format(flowcell=flowcell, version=__version__),
+                body=TPL_MSG_SUCCESS.format(
+                    flowcell=flowcell,
+                    version=__version__,
+                    missing_log_files="\n".join(missing_log_files) or "none; all found",
+                ),
                 attachments=list(
                     itertools.chain(
-                        [path_out % ("Report", "html.gz"), path_out % ("Data", "zip")], log_files
+                        [path_out % ("Report", "html.gz"), path_out % ("Data", "zip")],
+                        existing_log_files,
                     )
                 ),
             )

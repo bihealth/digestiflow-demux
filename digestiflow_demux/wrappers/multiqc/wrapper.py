@@ -12,12 +12,12 @@ __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 shell.executable("/bin/bash")
 
 with tempfile.NamedTemporaryFile("wt+") as listf:
-  print("\n".join(snakemake.input), file=listf)
-  listf.flush()
-  listf.seek(0)
+    print("\n".join(snakemake.input), file=listf)
+    listf.flush()
+    listf.seek(0)
 
-  shell(
-      r"""
+    shell(
+        r"""
   set -x
   set -euo pipefail
 
@@ -29,4 +29,4 @@ with tempfile.NamedTemporaryFile("wt+") as listf:
       --interactive \
       $(cat {listf.name})
   """
-  )
+    )

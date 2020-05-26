@@ -225,7 +225,7 @@ def run(config, output_dir, input_dirs, log_handler):
             api_url=config.api_url, api_token=config.api_token, project_uuid=config.project_uuid
         )
         flowcells = client.flowcell_list(status_conversion="ready")
-        vendor_ids = [f['vendor_id'] for f in flowcells]
+        vendor_ids = [f["vendor_id"] for f in flowcells]
         logging.info("=> found %d ready flow cells", len(vendor_ids))
         logging.info("Filtering folder names...")
         old_len = len(input_dirs)
