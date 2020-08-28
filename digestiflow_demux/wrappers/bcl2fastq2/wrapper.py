@@ -122,7 +122,7 @@ fls = glob.glob(
 )
 for path in fls:
     f = os.path.basename(path)
-    name = f.split("__")[1]  # remove $bases_mask__
+    name = f.split("__", 1)[1]  # remove $bases_mask__
     name_elements = name.split("_")[:-3]
     oldS = name_elements[-1]
     name = "_".join(name_elements[:-1])
