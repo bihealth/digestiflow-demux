@@ -530,6 +530,11 @@ def launch_snakemake(config, flowcell, output_dir, work_dir):
             argv += ["--drmaa", config.drmaa]
         if config.cluster_config:
             argv += ["--cluster-config", config.cluster_config]
+        try:
+            subprocess.check_output(["which", "mamba"], stderr=subprocess.PIPE)
+            argv += ["--conda-frontend", "mamba"]
+        except subprocess.CalledProcessError:
+            pass
         argv = list(map(str, argv))
         logging.info("Executing: snakemake %s", " ".join(argv))
         try:
