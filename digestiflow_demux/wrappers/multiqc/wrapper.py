@@ -27,6 +27,6 @@ with tempfile.NamedTemporaryFile("wt+") as listf:
       --zip-data-dir \
       --outdir $(dirname {snakemake.output.html}) \
       --interactive \
-      $(cat {listf.name})
+      --file-list {listf.name}
   """
     )
