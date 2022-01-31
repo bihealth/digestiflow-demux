@@ -3,5 +3,5 @@ channels:
 - conda-forge
 - defaults
 dependencies:
-- fastqc ==0.11.8
-- conda-forge::openjdk
+- fastqc ==0.11.9
+- conda-forge::openjdk ==8.0.144

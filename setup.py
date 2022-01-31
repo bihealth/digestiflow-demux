@@ -58,7 +58,7 @@ setup(
     url="https://github.com/bihealth/digestiflow-demux",
     packages=find_packages(),
     package_dir={"digestiflow_demux": "digestiflow_demux"},
-    entry_points={"console_scripts": (("digestiflow-demux=digestiflow_demux.__main__:main",),)},
+    entry_points={"console_scripts": ("digestiflow-demux=digestiflow_demux.__main__:main",),)},
     include_package_data=True,
     install_requires=requirements,
     license="MIT license",

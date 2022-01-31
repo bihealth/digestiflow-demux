@@ -28,7 +28,7 @@ mkdir -p $TMPDIR
 
 # -------------------------------------------------------------------------------------------------
 
-picard ExtractIlluminaBarcodes \
+picard -Xmx16g ExtractIlluminaBarcodes \
     BARCODE_FILE={snakemake.input} \
     BASECALLS_DIR={snakemake.params.input_dir}/Data/Intensities/BaseCalls \
     LANE={snakemake.wildcards.lane} \

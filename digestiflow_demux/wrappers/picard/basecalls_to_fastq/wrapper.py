@@ -36,7 +36,7 @@ for sheet in {snakemake.input.sheets}; do
 
     head -n 1000 $sheet
 
-    picard -Xmx16g -Djava.io.tmpdir=$TMPDIR \
+    picard -Xmx24g -Djava.io.tmpdir=$TMPDIR \
         IlluminaBasecallsToFastq \
         BASECALLS_DIR={snakemake.params.input_dir}/Data/Intensities/BaseCalls \
         READ_STRUCTURE={snakemake.params.read_structure} \
@@ -48,6 +48,7 @@ for sheet in {snakemake.input.sheets}; do
         MACHINE_NAME={snakemake.params.machine_name} \
         NUM_PROCESSORS={snakemake.threads} \
         COMPRESS_OUTPUTS=true {tiles}
+
 
     # Move files to destination
     for path in $lane/*.fastq.gz; do
