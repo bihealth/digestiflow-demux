@@ -3,6 +3,18 @@ Digestiflow Demux Changelog
 ===========================
 
 ------
+v0.5.3
+------
+
+- Making multiqc wrapper work even for many files.
+- Proper parsing for full RTA version.
+- Fixing submission in case of non-created bcl2fast2 log files.
+- Improving splitting heuristic.
+- Allowing user to pick conda frontend.
+- Fixing problem with too many output files.
+- Small updates and fixes..
+
+------
 v0.5.2
 ------
 
