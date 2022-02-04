@@ -3,6 +3,12 @@ Digestiflow Demux Changelog
 ===========================
 
 ------
+v0.5.4
+------
+
+- Fixing ``setup.py`` problem with 0.5.4.
+
+------
 v0.5.3
 ------
 
