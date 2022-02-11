@@ -270,7 +270,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     if flowcell["status_conversion"] != "ready" and not config.force_demultiplexing:
         logging.warning('Status is not "ready", will skip flow cell.')
         return None
-    if not flowcell["libraries"]:
+    if not flowcell["libraries"] and "seq" in flowcell["delivery_type"]:
         logging.warning("There are no libraries in flow cell. I'm refusing to continue.")
         return None
 
