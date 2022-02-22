@@ -68,7 +68,8 @@ rule create_tarballs:
             -type f -and \
             -not -path '*Logs*' -and \
             -not -path '*Data*' -and \
-            -not -path '*Thumbnail*' \
+            -not -path '*Thumbnail*'  -or \
+            -name 's.locs' \
          | sort -g \
          > $TMPDIR/files.txt)
 
