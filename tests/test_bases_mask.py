@@ -1,6 +1,6 @@
 import pytest
 
-from ..bases_mask import (
+from digestiflow_demux.bases_mask import (
     split_bases_mask,
     compare_bases_mask,
     return_bases_mask,
