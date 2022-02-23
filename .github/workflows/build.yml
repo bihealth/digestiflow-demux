@@ -1,0 +1,30 @@
+name: Build
+on: push
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        python-version:
+          - '3.8'
+          # - '3.9'
+          # - '3.10'
+    steps:
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install project Python dependencies
+        run: |
+          pip install pytest pytest-mock
+          pip install -r requirements/test.txt
+      - name: Run tests
+        run: |
+          py.test tests
+      - name: Check linting
+        run: flake8 .
+      # - name: Check formatting
+      #   run: make black arg=--check
