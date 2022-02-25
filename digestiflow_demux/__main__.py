@@ -13,7 +13,6 @@ import toml
 
 from .api_client import ApiClient
 from .exceptions import ApiProblemException
-from .bases_mask import BaseMaskConfigException
 from .workflow import perform_demultiplexing
 
 from ._version import get_versions

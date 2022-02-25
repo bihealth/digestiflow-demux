@@ -12,7 +12,7 @@ __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 shell.executable("/bin/bash")
 
 with tempfile.NamedTemporaryFile("wt+") as listf:
-    print("\n".join(snakemake.input), file=listf)
+    print("\n".join(snakemake.input), file=listf)  # noqa
     listf.flush()
     listf.seek(0)
 
