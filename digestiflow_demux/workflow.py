@@ -163,7 +163,7 @@ def write_sample_sheet_picard(flowcell, libraries, output_dir):
         samples_rows = []
         for lib in libraries.values():
             output_prefix = "{lane}/{name}".format(
-                name=lib["name"], flowcell=flowcell["vendor_id"], lane=lane
+                name=lib["name"], lane=lane
             )
 
             if dual_indexing:
@@ -475,7 +475,7 @@ def tee_pipe(process, input_file, out_file, out_stream, mutex):
                 out_file.write(line)
 
 
-def launch_snakemake(config, flowcell, output_dir, work_dir):
+def launch_snakemake(config, flowcell, output_dir, work_dir):  # noqa: C901
     """Launch Snakemake and execute the demultiplexing"""
     logging.info("Temporary directory is %s", work_dir)
     logging.info("Start Snakemake workflow for demultiplexing")
