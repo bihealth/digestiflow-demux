@@ -177,8 +177,7 @@ def get_result_files_demux_with_project(config):
                     output_dir=config["output_dir"],
                 )
                 if sample_name == "Undetermined"
-                else
-                "{output_dir}/{project}/{id}/{sample_name}".format(
+                else "{output_dir}/{project}/{id}/{sample_name}".format(
                     id=flowcell["composite_id"],
                     project=lib.get("project_id", "Project"),
                     output_dir=config["output_dir"],
@@ -244,11 +243,11 @@ def get_result_files_fastqc(config):
     """Return list with FASTQC results files."""
     res_zip = []
     res_html = []
-    paths = (get_result_files_demux(config)
-             if not config["demux_tool"] == "bclconvert"
-             else
-             get_result_files_demux_with_project(config)
-             )
+    paths = (
+        get_result_files_demux(config)
+        if not config["demux_tool"] == "bclconvert"
+        else get_result_files_demux_with_project(config)
+    )
     for path in paths:
         ext = ".fastq.gz"
         if path.endswith(ext):

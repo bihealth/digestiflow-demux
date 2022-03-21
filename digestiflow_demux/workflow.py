@@ -165,9 +165,7 @@ def write_sample_sheet_picard(flowcell, libraries, output_dir):
         barcode_rows = []
         samples_rows = []
         for lib in libraries.values():
-            output_prefix = "{lane}/{name}".format(
-                name=lib["name"], lane=lane
-            )
+            output_prefix = "{lane}/{name}".format(name=lib["name"], lane=lane)
 
             if dual_indexing:
                 # we do not pass the barcodes names, so we use the sample name.
@@ -371,11 +369,14 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     }
     #  TODO the same for bclconvert
 
-    composite_id = "_".join([flowcell["run_date"],
-                             flowcell["sequencing_machine"],
-                             "{:04d}".format(flowcell["run_number"]),
-                             flowcell["vendor_id"]
-                             ])
+    composite_id = "_".join(
+        [
+            flowcell["run_date"],
+            flowcell["sequencing_machine"],
+            "{:04d}".format(flowcell["run_number"]),
+            flowcell["vendor_id"],
+        ]
+    )
     flowcell["composite_id"] = composite_id
 
     logging.debug("Writing out demultiplexing configuration")

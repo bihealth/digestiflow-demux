@@ -27,4 +27,4 @@ jobs:
       - name: Check linting
         run: flake8 .
       - name: Check formatting
-        run: black -l100 --check
+        run: black -l100 --check .

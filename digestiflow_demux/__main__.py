@@ -316,7 +316,7 @@ def main(argv=None):
     parser.add_argument(
         "--only-write-samplesheets",
         action="store_true",
-        help="Only write out sample sheets, do not run demultiplexing"
+        help="Only write out sample sheets, do not run demultiplexing",
     )
     parser.add_argument(
         "--filter-folder-names",

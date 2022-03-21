@@ -3,6 +3,7 @@ config = """{"barcode_mismatches": 0, "bcl2fastq2_params": {"with_failed_reads":
 
 def return_config(config):
     import json
+
     config_ = json.loads(config)
     return config_
 
