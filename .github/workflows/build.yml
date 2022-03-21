@@ -26,5 +26,5 @@ jobs:
           py.test tests
       - name: Check linting
         run: flake8 .
-      # - name: Check formatting
-      #   run: make black arg=--check
+      - name: Check formatting
+        run: black -l100 --check
