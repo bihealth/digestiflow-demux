@@ -40,6 +40,8 @@ class DemuxConfig:
     only_post_message = attr.ib()
     #: The project UUID to register the flowcell in
     project_uuid = attr.ib()
+    #: Only write sample sheets
+    only_write_samplesheets = attr.ib()
 
     #: Whether or not to keep the work directory
     keep_work_dir = attr.ib()
@@ -86,6 +88,7 @@ class DemuxConfig:
             force_demultiplexing=config["web"]["force_demultiplexing"],
             filter_folder_names=config["web"]["filter_folder_names"],
             only_post_message=config["web"]["only_post_message"],
+            only_write_samplesheets=config["only_write_samplesheets"],
             demux_tool=config["demux"]["demux_tool"],
             with_failed_reads=config["with_failed_reads"],
             project_uuid=config["demux"]["project_uuid"],
@@ -146,7 +149,7 @@ def load_config(config_path=None):
     return config
 
 
-def merge_config_args(config, args):
+def merge_config_args(config, args):  # noqa: C901
     """Merge args into configuration."""
     config.setdefault("web", {}).setdefault("url", None)
     if args.api_url:
@@ -195,6 +198,10 @@ def merge_config_args(config, args):
         config.setdefault("demux", {})["cluster_config"] = args.cluster_config
     if args.jobscript:
         config.setdefault("demux", {})["jobscript"] = args.jobscript
+    config.setdefault("only_write_samplesheets", False)
+    if args.only_write_samplesheets:
+        config["only_write_samplesheets"] = True
+        config["web"]["api_read_only"] = True
 
     config["log_api_token"] = args.log_api_token
 
@@ -278,7 +285,7 @@ def main(argv=None):
     parser.add_argument("--config", default=None, help="Path to configuration TOML file to load.")
     parser.add_argument(
         "--demux-tool",
-        choices=["bcl2fastq", "picard"],
+        choices=["bcl2fastq", "picard", "bclconvert"],
         default="bcl2fastq",
         help="Demultiplexing tool to use. Choices are Illumina's bcl2fastq(2) and Picard",
     )
@@ -305,6 +312,11 @@ def main(argv=None):
         "--force-demultiplexing",
         action="store_true",
         help="Force demultiplexing even if flow cell not marked as ready",
+    )
+    parser.add_argument(
+        "--only-write-samplesheets",
+        action="store_true",
+        help="Only write out sample sheets, do not run demultiplexing"
     )
     parser.add_argument(
         "--filter-folder-names",

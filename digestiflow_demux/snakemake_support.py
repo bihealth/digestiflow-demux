@@ -5,7 +5,6 @@ import glob
 import os
 
 from .workflow import load_run_parameters
-from .exceptions import InvalidConfiguration
 
 __author__ = "Manuel Holtgrewe <manuel.holtgrewe@bihealth.de>"
 
@@ -141,6 +140,59 @@ def build_sample_map(flowcell):
 
 
 @listify
+def get_result_files_demux_with_project(config):
+    """Return list with demultiplexing results."""
+
+    def out_prefix(path):
+        return os.path.join(config["output_dir"], path)
+
+    flowcell = config["flowcell"]
+    sample_map = build_sample_map(flowcell)
+    bases_mask = flowcell["demux_reads"]
+    n_template = bases_mask.count("T")
+    n_index = (
+        bases_mask.count("B")
+        if (
+            config["bcl2fastq2_params"]["create_fastq_for_index_reads"]
+            and config["demux_tool"] == "bcl2fastq2"
+        )
+        else 0
+    )
+    expect_undetermined = True if "B" in bases_mask else False
+    rta_version = config_to_rta_version(config)
+    undetermined = undetermined_libraries(flowcell, rta_version) if expect_undetermined else []
+
+    for lib in flowcell["libraries"] + undetermined:
+        for lane in sorted(lib["lanes"]):
+            if config["lanes"] and lane not in config["lanes"]:
+                continue  # skip disabled lanes
+            if lib["barcode"] == "Undetermined":
+                sample_name = "Undetermined"
+            else:
+                sample_name = lib["name"]
+
+            out_dir = (
+                "{output_dir}/Undetermined/{id}".format(
+                    id=flowcell["composite_id"],
+                    output_dir=config["output_dir"],
+                )
+                if sample_name == "Undetermined"
+                else
+                "{output_dir}/{project}/{id}/{sample_name}".format(
+                    id=flowcell["composite_id"],
+                    project=lib.get("project_id", "Project"),
+                    output_dir=config["output_dir"],
+                    sample_name=sample_name,
+                )
+            )
+
+            seq = sample_map.get(sample_name, "S0")
+            name = "Undetermined" if lib["barcode"] == "Undetermined" else lib["name"]
+            for fname in lib_file_names(lib, rta_version, n_template, n_index, lane, seq, name):
+                yield out_prefix("{out_dir}/{fname}".format(out_dir=out_dir, fname=fname))
+
+
+@listify
 def get_result_files_demux(config):
     """Return list with demultiplexing results."""
 
@@ -192,7 +244,12 @@ def get_result_files_fastqc(config):
     """Return list with FASTQC results files."""
     res_zip = []
     res_html = []
-    for path in get_result_files_demux(config):
+    paths = (get_result_files_demux(config)
+             if not config["demux_tool"] == "bclconvert"
+             else
+             get_result_files_demux_with_project(config)
+             )
+    for path in paths:
         ext = ".fastq.gz"
         if path.endswith(ext):
             folder = os.path.dirname(path)
@@ -227,27 +284,11 @@ def get_tiles_arg(config):
 
 
 def get_tool_marker(config):
-    """Return marker file for either bcl2fastq, bcl2fastq2 or picard for snakemake"""
-    if len(config["flowcell"]["demux_reads_override"]) > 1:
-        if config["demux_tool"] == "bcl2fastq2":
-            return "bcl2fastq2.done"
-        else:
-            raise InvalidConfiguration(
-                "Only bcl2fastq2 supports more than one bases mask at once, but you have {}".format(
-                    " and ".join(config["flowcell"]["demux_reads_override"])
-                )
-            )
-    elif "M" in config["flowcell"]["demux_reads"]:
-        if config["demux_tool"] == "picard":
-            return "picard.done"
-        else:
-            raise InvalidConfiguration(
-                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' "
-                "in your bases mask, but you wanted to run bcl2fastq(2)."
-            )
-    elif config["demux_tool"] == "bcl2fastq1":
-        return "bcl2fastq1.done"
-    elif config["demux_tool"] == "picard":
-        return "picard.done"
-    else:
-        return "bcl2fastq2.done"
+    """Return marker file for either bcl2fastq, bcl2fastq2, bclconvert or picard for snakemake"""
+    marker_dict = {
+        "bcl2fastq1": "bcl2fastq1.done",
+        "bcl2fastq2": "bcl2fastq2.done",
+        "bclconvert": "bclconvert.done",
+        "picard": "picard.done",
+    }
+    return marker_dict[config["demux_tool"]]

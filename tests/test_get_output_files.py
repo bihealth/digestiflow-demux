@@ -1,4 +1,4 @@
-from digestiflow_demux.snakemake_support import get_result_files_demux
+from digestiflow_demux.snakemake_support import get_result_files_demux, get_result_files_demux_with_project
 from tests.flowcell_config import return_config1
 
 
@@ -119,4 +119,11 @@ def test_get_output_files_demux_RTAv1(mocker):
     ]
     mocker.patch('digestiflow_demux.snakemake_support.config_to_rta_version', return_value=(1, 0, 0))
     files = get_result_files_demux(return_config1())
+    assert files == expected
+
+
+def test_get_output_files_demux_with_project(mocker):
+    expected = []
+    mocker.patch('digestiflow_demux.snakemake_support.config_to_rta_version', return_value=(2, 0, 0))
+    files = get_result_files_demux_with_project(return_config1())
     assert files == expected

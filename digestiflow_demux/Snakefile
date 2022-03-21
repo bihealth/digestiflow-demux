@@ -5,6 +5,7 @@ import os
 from digestiflow_demux.snakemake_support import (
     bcl2fastq_wrapper,
     get_result_files_demux,
+    get_result_files_demux_with_project,
     get_result_files_fastqc,
     get_tiles_arg,
     get_tool_marker,
@@ -111,6 +112,22 @@ rule demux_bcl2fastq1:
     wrapper: wrapper_path(bcl2fastq_wrapper(config))
 
 # -------------------------------------------------------------------------------------------------
+# bclconvert
+demux_reads = config["flowcell"]["demux_reads"]
+rule demux_bclconvert:
+    input: sheet = out_prefix("illumina_basesmask/" + demux_reads + "/SampleSheet.csv")
+    output: get_result_files_demux_with_project(config),
+            marker = out_prefix("bclconvert.done")
+
+    params:
+        flowcell_token=config["flowcell"]["composite_id"],
+        input_dir=config["input_dir"],
+        output_dir=config["output_dir"],
+        tiles_arg=get_tiles_arg(config),
+    threads: config["cores"]
+    wrapper: wrapper_path("bclconvert")
+
+# -------------------------------------------------------------------------------------------------
 # bcl2fastq2
 
 # Get list of all bases masks configured, as bcl2fastq2 will be run once for each
@@ -208,6 +225,13 @@ rule prepare_picard:
 
 # -------------------------------------------------------------------------------------------------
 # Run FastQC.
+# Have to use ruleorder for ambiguous targets. TODO re-visit if there is a simpler way.
+if config["demux_tool"] == "bclconvert":
+    ruleorder: fastqc_with_project > fastqc
+    ruleorder: fastqc_with_project > fastqc_undetermined_extra
+else:
+    ruleorder: fastqc > fastqc_with_project
+    ruleorder: fastqc > fastqc_undetermined_extra
 
 rule fastqc:
     input:
@@ -218,6 +242,33 @@ rule fastqc:
         zip=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip"),
         zip_md5=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip.md5"),
     threads: 1
+    conda: "seq-qc"
+    wrapper: wrapper_path("fastqc")
+
+# fastqc rules for new structure with projects in paths specifically
+rule fastqc_with_project:
+    input:
+        fastq=out_prefix("{project}/{sample}/{flowcell}/{filename}.fastq.gz")
+    output:
+        html=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.html"),
+        html_md5=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.html.md5"),
+        zip=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.zip"),
+        zip_md5=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.zip.md5"),
+    threads: 1
+    conda: "seq-qc"
+    wrapper: wrapper_path("fastqc")
+
+rule fastqc_undetermined_extra:
+    "Undetermined files are not part of project structure, handle separately for bclconvert"
+    input:
+        fastq=out_prefix("Undetermined/{flowcell}/{filename}.fastq.gz")
+    output:
+        html=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.html"),
+        html_md5=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.html.md5"),
+        zip=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.zip"),
+        zip_md5=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.zip.md5"),
+    threads: 1
+    conda: "seq-qc"
     wrapper: wrapper_path("fastqc")
 
 # -------------------------------------------------------------------------------------------------
@@ -229,4 +280,5 @@ rule illumina_demultiplexing_multiqc:
         html=out_prefix("multiqc/multiqc_report.html"),
         zip=out_prefix("multiqc/multiqc_data.zip"),
     threads: 1
+    conda: "seq-qc"
     wrapper: wrapper_path("multiqc")
