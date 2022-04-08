@@ -64,8 +64,7 @@ head -n 10000 {snakemake.input.sheet}
 # -------------------------------------------------------------------------------------------------
 # Execute bclconvert
 
-# todo replace with world-readable singularity wrapper
-/data/gpfs-1/work/users/cmesser_m/dev/bclconvert/docker/bclconvert \
+bclconvert \
     --sample-sheet {snakemake.input.sheet} \
     --bcl-input-directory {snakemake.params.input_dir} \
     --output-dir $TMPDIR/demux_out \
