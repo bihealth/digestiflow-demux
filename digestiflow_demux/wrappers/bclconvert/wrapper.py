@@ -5,6 +5,7 @@ This file is part of Digestify Demux.
 
 import os
 import sys
+import glob
 from snakemake import shell
 
 # A hack is required for being able to import snappy_wrappers modules when in development mode.
@@ -30,6 +31,7 @@ threads = min(16, snakemake.config["cores"])  # noqa
 planned_reads = snakemake.config["flowcell"]["planned_reads"]  # noqa
 bases_mask = os.path.basename(os.path.dirname(snakemake.input.sheet))  # noqa
 bases_mask_illumina = return_bases_mask(planned_reads, bases_mask)
+bases_mask_illumina = bases_mask_illumina.replace(",", ";")
 
 # Get sample map to get sample numbering correct
 sample_map = build_sample_map(snakemake.config["flowcell"])  # noqa
@@ -57,9 +59,13 @@ export TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
 # -------------------------------------------------------------------------------------------------
-# Print Sample Sheet
+# Manipulate and print Sample Sheet
+
+echo "[Settings]" >> {snakemake.input.sheet}
+echo "OverrideCycles,{bases_mask_illumina}" >> {snakemake.input.sheet}
 
 head -n 10000 {snakemake.input.sheet}
+
 
 # -------------------------------------------------------------------------------------------------
 # Execute bclconvert
@@ -69,8 +75,11 @@ bclconvert \
     --bcl-input-directory {snakemake.params.input_dir} \
     --output-dir $TMPDIR/demux_out \
     --bcl-num-conversion-threads {threads} \
-    --bcl-sampleproject-subdirectories true \
-    {snakemake.params.tiles_arg}
+    --bcl-sampleproject-subdirectories true
+
+    # add for debug purposes. The first-tiles-only fails for some Novaseq flowcells.
+    #--first-tile-only true
+    #--tiles 2101
 
 ls -lh $TMPDIR/demux_out/*
 
@@ -82,9 +91,9 @@ flowcell={snakemake.params.flowcell_token}
 srcdir=$TMPDIR/demux_out/
 
 for path in $srcdir/*/*.fastq.gz; do
-    sample=$(basename $path | rev | cut -d _ -f 5- | rev) # why not take the first withoute rev?
+    sample=$(basename $path | rev | cut -d _ -f 5- | rev)
     project=$(basename $(dirname $path))
-    dest={snakemake.params.output_dir}/$project/$flowcell/$sample/$(basename $path)
+    dest={snakemake.params.output_dir}/$project/$flowcell/$sample/{bases_mask}__$(basename $path)
     mkdir -p $(dirname $dest)
     cp -dR $path $dest
 done
@@ -94,7 +103,7 @@ srcdir=$TMPDIR/demux_out
 
 for path in $srcdir/Undetermined_*; do
     if [[ -f $path ]]; then
-        dest={snakemake.params.output_dir}/Undetermined/$flowcell/$(basename $path)
+        dest={snakemake.params.output_dir}/Undetermined/$flowcell/{bases_mask}__$(basename $path)
         mkdir -p $(dirname $dest)
         cp -dR $path $dest
     fi
@@ -103,9 +112,24 @@ done
 # Write out the html report files as an archive
 srcdir=$TMPDIR/demux_out
 pushd $srcdir
-tar -czvf {snakemake.params.output_dir}/html_report.tar.gz Reports
+tar -czvf {snakemake.params.output_dir}/html_report_{bases_mask}.tar.gz Reports
 popd
 
 touch {snakemake.output.marker}
 """
 )
+
+
+# Counting samples from 0 for each bases mask breaks snakemake's assumption that
+# all samples from all sample sheets are numbered incrementally. Here, we look up the correct
+# sample number and replace it in the path. Easier to do in python than in bash above.
+fls = glob.glob(os.path.join(snakemake.params.output_dir, "*/*/*/" + "*.fastq.gz"))  # noqa
+for path in fls:
+    f = os.path.basename(path)
+    name = f.split("__", 1)[1]  # remove $bases_mask__
+    name_elements = name.split("_")[:-3]
+    oldS = name_elements[-1]
+    name = "_".join(name_elements[:-1])
+    newS = sample_map[name]
+    newpath = path.replace("_".join([name, oldS]), "_".join([name, newS]))
+    os.rename(path, newpath)
