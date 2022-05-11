@@ -5,6 +5,7 @@ import os
 from digestiflow_demux.snakemake_support import (
     bcl2fastq_wrapper,
     get_result_files_demux,
+    get_result_files_demux_with_project,
     get_result_files_fastqc,
     get_tiles_arg,
     get_tool_marker,
@@ -96,7 +97,7 @@ rule create_tarballs:
 
 # -------------------------------------------------------------------------------------------------
 # Perform demultiplexing.
-# Use bcl2fastq for flowcells with rta_version 1
+# Use bcl2fastq1 for flowcells with rta_version 1
 
 rule demux_bcl2fastq1:
     input: sheet=out_prefix("SampleSheet.csv")
@@ -111,11 +112,69 @@ rule demux_bcl2fastq1:
     wrapper: wrapper_path(bcl2fastq_wrapper(config))
 
 # -------------------------------------------------------------------------------------------------
+# bclconvert
+bases_masks = config["flowcell"]["demux_reads_override"]
+keep_undetermined = config["flowcell"]["demux_reads"]  # keep undetermined from configured reads, might be suboptimal?
+
+rule demux_bclconvert_aggregate:
+    input: expand(out_prefix("illumina_basesmask/{bases_mask}/bclconvert.done"), bases_mask = bases_masks),
+    output: fastq = get_result_files_demux_with_project(config),
+            marker = out_prefix("bclconvert.done")
+    run:
+        # FASTQ file names are prefixed with their bases mask. Rename them to the expected output.
+        # code is mostly duplicated from bcl2fastq2, but as behaviour can diverge, this is ok.
+        import os
+        import glob
+        from snakemake import shell
+        for final_path in output.fastq:
+            d = os.path.dirname(final_path)
+            f = os.path.basename(final_path)
+            if not f.startswith("Undetermined_"):
+                os.rename(glob.glob(os.path.join(d, "*__" + f))[0], final_path)
+            else:
+                if not keep_undetermined:
+                    continue
+                undetermined = glob.glob(os.path.join(d, keep_undetermined + "__" + f))
+                if not undetermined:
+                    undetermined = glob.glob(os.path.join(d, "*__" + f))
+                if undetermined:
+                    os.rename(undetermined[0], final_path)
+                else:  # write a fake fastq if you can't find any, but it is expected
+                    import gzip
+                    os.makedirs(d, exist_ok=True)
+                    with gzip.open(final_path, "wt") as f:
+                        f.write("@placeholder\n")
+                        f.write("N\n")
+                        f.write("+\n")
+                        f.write("!\n")
+        shell(
+            r"""
+            for dest in {output.fastq}; do
+                pushd $(dirname $dest)
+                md5sum $(basename $dest) >$(basename $dest).md5
+                popd
+            done
+            touch {output.marker}
+            """
+            )
+
+rule demux_bclconvert:
+    input: sheet = out_prefix("illumina_basesmask/{bases_mask}/SampleSheet.csv")
+    output: marker = out_prefix("illumina_basesmask/{bases_mask}/bclconvert.done")
+    params:
+        flowcell_token=config["flowcell"]["composite_id"],
+        input_dir=config["input_dir"],
+        output_dir=config["output_dir"],
+        # tiles_arg=get_tiles_arg(config),  # disable for the time being
+    threads: config["cores"]
+    wrapper: wrapper_path("bclconvert")
+
+# -------------------------------------------------------------------------------------------------
 # bcl2fastq2
 
 # Get list of all bases masks configured, as bcl2fastq2 will be run once for each
 bases_masks = config["flowcell"]["demux_reads_override"]
-keep_undetermined = config["flowcell"]["demux_reads"]
+keep_undetermined = config["flowcell"]["demux_reads"]  # keep undetermined from configured reads, might be suboptimal?
 
 rule demux_bcl2fastq2_aggregate:
     input: expand(out_prefix("illumina_basesmask/{bases_mask}/bcl2fastq2.done"), bases_mask = bases_masks)
@@ -208,6 +267,13 @@ rule prepare_picard:
 
 # -------------------------------------------------------------------------------------------------
 # Run FastQC.
+# Have to use ruleorder for ambiguous targets. TODO re-visit if there is a simpler way.
+if config["demux_tool"] == "bclconvert":
+    ruleorder: fastqc_with_project > fastqc
+    ruleorder: fastqc_with_project > fastqc_undetermined_extra
+else:
+    ruleorder: fastqc > fastqc_with_project
+    ruleorder: fastqc > fastqc_undetermined_extra
 
 rule fastqc:
     input:
@@ -218,6 +284,33 @@ rule fastqc:
         zip=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip"),
         zip_md5=out_prefix("{sample}/{flowcell}/{lane}/qc/fastqc/{filename}_fastqc.zip.md5"),
     threads: 1
+    #conda: "seq-qc"
+    wrapper: wrapper_path("fastqc")
+
+# fastqc rules for new structure with projects in paths specifically
+rule fastqc_with_project:
+    input:
+        fastq=out_prefix("{project}/{sample}/{flowcell}/{filename}.fastq.gz")
+    output:
+        html=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.html"),
+        html_md5=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.html.md5"),
+        zip=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.zip"),
+        zip_md5=out_prefix("{project}/{sample}/{flowcell}/qc/fastqc/{filename}_fastqc.zip.md5"),
+    threads: 1
+    #conda: "seq-qc"
+    wrapper: wrapper_path("fastqc")
+
+rule fastqc_undetermined_extra:
+    "Undetermined files are not part of project structure, handle separately for bclconvert"
+    input:
+        fastq=out_prefix("Undetermined/{flowcell}/{filename}.fastq.gz")
+    output:
+        html=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.html"),
+        html_md5=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.html.md5"),
+        zip=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.zip"),
+        zip_md5=out_prefix("Undetermined/{flowcell}/qc/fastqc/{filename}_fastqc.zip.md5"),
+    threads: 1
+    conda: "seq-qc"
     wrapper: wrapper_path("fastqc")
 
 # -------------------------------------------------------------------------------------------------
@@ -229,4 +322,5 @@ rule illumina_demultiplexing_multiqc:
         html=out_prefix("multiqc/multiqc_report.html"),
         zip=out_prefix("multiqc/multiqc_data.zip"),
     threads: 1
+    #conda: "seq-qc"
     wrapper: wrapper_path("multiqc")

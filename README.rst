@@ -18,6 +18,8 @@ Installation
 
 The recommended way is to install the ``digestiflow-demux`` package from Bioconda.
 
+For developing, you can also install it with `pip install -e .`, ideally in a separate environment.
+
 -----
 Usage
 -----

@@ -20,7 +20,7 @@ from snakemake.exceptions import WorkflowError
 from digestiflow_demux import __version__
 from .bases_mask import split_bases_mask, return_bases_mask, BaseMaskConfigException
 from .api_client import ApiClient, ApiException
-from .exceptions import ApiProblemException, MissingOutputFile
+from .exceptions import ApiProblemException, MissingOutputFile, InvalidConfiguration
 
 #: Path to the Snakefile.
 PATH_SNAKEFILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "Snakefile"))
@@ -93,7 +93,7 @@ def write_sample_sheet_v1(writer, flowcell, libraries):
             writer.writerow(list(map(str, data)))
 
 
-def write_sample_sheets_v2(flowcell, libraries, output_dir):
+def write_sample_sheets_v2(flowcell, libraries, output_dir, include_projects=False):
     """Write V2 sample sheets. Write one sample sheet for each bases_mask in the config."""
     # re-shuffle dict from lib - lane - bases_mask to bases_mask - lib
     d = collections.defaultdict(dict)
@@ -109,10 +109,10 @@ def write_sample_sheets_v2(flowcell, libraries, output_dir):
             "w",
         ) as f:
             writer = csv.writer(f, delimiter=",")
-            write_sample_sheet_v2(writer, flowcell, libraries.values())
+            write_sample_sheet_v2(writer, flowcell, libraries.values(), include_projects)
 
 
-def write_sample_sheet_v2(writer, flowcell, libraries):
+def write_sample_sheet_v2(writer, flowcell, libraries, include_projects):
     """Write V2 sample sheet"""
     # Write [Data] Section
     writer.writerow(["[Data]"])
@@ -130,7 +130,10 @@ def write_sample_sheet_v2(writer, flowcell, libraries):
                 row = [lane, lib["name"], barcode]
                 if dual_indexing:
                     row.append(lib["barcode2"])
-                row.append("Project")
+                if include_projects:
+                    row.append(lib["project_id"])
+                else:
+                    row.append("Project")
                 rows.append(row)
     for row in sorted(rows):
         writer.writerow(list(map(str, row)))
@@ -162,9 +165,7 @@ def write_sample_sheet_picard(flowcell, libraries, output_dir):
         barcode_rows = []
         samples_rows = []
         for lib in libraries.values():
-            output_prefix = "{lane}/{name}".format(
-                name=lib["name"], lane=lane
-            )
+            output_prefix = "{lane}/{name}".format(name=lib["name"], lane=lane)
 
             if dual_indexing:
                 # we do not pass the barcodes names, so we use the sample name.
@@ -335,6 +336,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
                 "barcode2": barcode_seq2,
                 "lanes": library["lane_numbers"],
                 "demux_reads_override": demux_reads,
+                "project_id": library.get("project_id", "Project"),
             }
         )
 
@@ -349,13 +351,12 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
     flowcell["demux_reads_override"] = list(sorted(demux_reads_override))
 
     rta_version = run_parameters["rta_version"]
-
-    if "M" in flowcell["demux_reads"]:  # TODO: refine condition
-        demux_tool = "picard"
-    elif config.demux_tool == "bcl2fastq" and rta_version >= (1, 18, 54):
+    if config.demux_tool == "bcl2fastq" and rta_version >= (1, 18, 54):
         demux_tool = "bcl2fastq2"
     elif config.demux_tool == "bcl2fastq":
         demux_tool = "bcl2fastq1"
+    elif config.demux_tool == "bclconvert":
+        demux_tool = "bclconvert"
     else:
         demux_tool = "picard"
     logging.info("Using demux tool %s", demux_tool)
@@ -366,6 +367,17 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
         "minimum_trimmed_read_length": flowcell["minimum_trimmed_read_length"],
         "mask_short_adapter_reads": flowcell["mask_short_adapter_reads"],
     }
+    #  TODO the same for bclconvert
+
+    composite_id = "_".join(
+        [
+            flowcell["run_date"],
+            flowcell["sequencing_machine"],
+            "{:04d}".format(flowcell["run_number"]),
+            flowcell["vendor_id"],
+        ]
+    )
+    flowcell["composite_id"] = composite_id
 
     logging.debug("Writing out demultiplexing configuration")
     # Get barcode mismatch count or default.
@@ -390,6 +402,7 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             "rta_version": flowcell["rta_version"],
             "tiles": config.tiles,
         }
+        check_tool_compatibility(config_json)
         json.dump(config_json, jsonf)
 
     logging.debug("Writing out sample sheet information")
@@ -399,8 +412,10 @@ def create_sample_sheet(config, input_dir, output_dir):  # noqa: C901
             write_sample_sheet_v1(csv.writer(csvf), flowcell, libraries)
     elif demux_tool == "picard":
         write_sample_sheet_picard(flowcell, libraries, output_dir)
-    else:
-        write_sample_sheets_v2(flowcell, libraries, output_dir)
+    elif demux_tool == "bcl2fastq2":
+        write_sample_sheets_v2(flowcell, libraries, output_dir, include_projects=False)
+    elif demux_tool == "bclconvert":
+        write_sample_sheets_v2(flowcell, libraries, output_dir, include_projects=True)
 
     return flowcell  # Everything is fine
 
@@ -598,6 +613,9 @@ def perform_demultiplexing(config, input_dir, output_dir):
     if not flowcell:
         return False, None, None, None
 
+    if config.only_write_samplesheets:
+        return False, None, None, None
+
     if config.work_dir:
         logging.info("Using work directory %s", config.work_dir)
         return launch_snakemake(config, flowcell, output_dir, config.work_dir)
@@ -608,3 +626,20 @@ def perform_demultiplexing(config, input_dir, output_dir):
         logging.info("Setup temporary work directory")
         with tempfile.TemporaryDirectory("-cubi-demux") as work_dir:
             return launch_snakemake(config, flowcell, output_dir, work_dir)
+
+
+def check_tool_compatibility(config):
+    """Check if selected tool is compatible with config choices."""
+    if len(config["flowcell"]["demux_reads_override"]) > 1:
+        if not config["demux_tool"] in ["bcl2fastq2", "bclconvert"]:
+            raise InvalidConfiguration(
+                "Only bcl2fastq2 and bclconvert support more than one bases mask at once, but you have {}".format(
+                    " and ".join(config["flowcell"]["demux_reads_override"])
+                )
+            )
+    if "M" in config["flowcell"]["demux_reads"]:
+        if not config["demux_tool"] in ["picard", "bclconvert"]:
+            raise InvalidConfiguration(
+                "Only picard can be used to write UMIs to separate FASTQ file. There is an 'M' "
+                "in your bases mask, but you wanted to run bcl2fastq(2)."
+            )

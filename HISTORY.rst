@@ -3,6 +3,13 @@ Digestiflow Demux Changelog
 ===========================
 
 ------
+v0.6.0-rc.1
+------
+
+- Add bclconvert wrapper.
+- Introduce new project structure (bclconvert only)
+
+------
 v0.5.4
 ------
 
@@ -18,7 +25,7 @@ v0.5.3
 - Improving splitting heuristic.
 - Allowing user to pick conda frontend.
 - Fixing problem with too many output files.
-- Small updates and fixes..
+- Small updates and fixes.
 
 ------
 v0.5.2
